@@ -1,0 +1,14 @@
+{
+    "times new roman": {
+        "normal": "TimesNewRoman",
+        "bold": "TimesNewRoman-Bold",
+        "italic": "TimesNewRoman-Italic",
+        "bold_italic": "TimesNewRoman-BoldItalic"
+    },
+    "timesnewroman": {
+        "normal": "TimesNewRoman",
+        "bold": "TimesNewRoman-Bold",
+        "italic": "TimesNewRoman-Italic",
+        "bold_italic": "TimesNewRoman-BoldItalic"
+    }
+}

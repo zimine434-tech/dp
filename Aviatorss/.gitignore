@@ -1,0 +1,30 @@
+*.log
+.DS_Store
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+.env
+.env.*.local
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# Local artifacts
+schedule_raw.html
+
+# k6 load tests
+/load/.env
+/load/results/
