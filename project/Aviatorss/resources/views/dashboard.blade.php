@@ -1,0 +1,1 @@
+{{-- Этот файл больше не используется, используйте dashboard-teacher.blade.php или dashboard-student.blade.php --}}
