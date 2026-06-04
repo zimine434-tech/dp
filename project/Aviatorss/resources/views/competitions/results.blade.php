@@ -2,6 +2,14 @@
 
 @section('title', 'Результаты соревнований')
 
+@push('styles')
+<style>
+    .results-listing-table tbody tr.results-listing-row:hover > td {
+        background-color: #f9fafb;
+    }
+</style>
+@endpush
+
 @section('content')
     <div class="space-y-6">
         <!-- Заголовок -->
@@ -86,10 +94,36 @@
         @endif
 
         @php
+            use App\Support\StudentCompetitionListingSort;
+
             $resultsView = $view ?? (auth()->user()->role === 'teacher' ? 'list' : 'cards');
             if (! in_array($resultsView, ['list', 'cards'], true)) {
                 $resultsView = auth()->user()->role === 'teacher' ? 'list' : 'cards';
             }
+            $cardsSortStack = $cardsSortStack ?? StudentCompetitionListingSort::defaultStack();
+            $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultStack();
+            $categoryFilterOptions = collect($categoriesForResultsFilter ?? [])
+                ->map(fn ($category) => ['value' => (string) $category->id, 'label' => (string) $category->name_category])
+                ->values()
+                ->all();
+            $resultsBaseParams = array_filter([
+                'q' => filled($q ?? null) ? $q : null,
+                'sport_id' => $sportId ?? null,
+                'competition_category_id' => $categoryId ?? null,
+                'date_from' => $dateFrom ?? null,
+                'date_to' => $dateTo ?? null,
+                'place' => filled($place ?? null) ? $place : null,
+                'view' => $resultsView === 'list' ? 'list' : null,
+                'per_page' => ($perPage ?? 25) !== 25 ? (string) ($perPage ?? 25) : null,
+            ], fn ($v) => $v !== null && $v !== '');
+            $resetResultsUrl = StudentCompetitionListingSort::listingUrl(
+                'competitions.results',
+                [],
+                $cardsSortStack,
+                $listSortStack,
+                ['page' => 1, 'ongoing_page' => 1]
+            );
+            $resultsSortAjaxAttr = 'data-competitions-results-ajax';
         @endphp
 
         <div class="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
@@ -149,6 +183,17 @@
                                     variant="filter"
                                 />
                             </div>
+                            <div class="min-w-0 w-full sm:w-44 sm:shrink sm:min-w-[8rem] lg:min-w-[7rem] lg:flex-1 lg:max-w-[12rem]">
+                                <label for="competitions-results-category_combobox_trigger" class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Категория</label>
+                                <x-filter-combobox
+                                    name="competition_category_id"
+                                    :selected="$categoryId ?? ''"
+                                    :options="$categoryFilterOptions"
+                                    empty-label="Все категории"
+                                    input-id="competitions-results-category"
+                                    variant="filter"
+                                />
+                            </div>
                             <div class="grid min-w-0 w-full grid-cols-2 gap-3 sm:flex sm:min-w-0 sm:shrink sm:gap-3 lg:flex-[0.9] lg:min-w-0 lg:max-w-[20rem]">
                                 <div class="min-w-0 sm:min-w-[7rem] sm:flex-1 sm:max-w-[10rem] lg:min-w-[6.5rem] lg:max-w-[9.5rem]">
                                     <label for="competitions-results-filters-form-date-from" class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Дата с</label>
@@ -173,10 +218,13 @@
                             </div>
                             <div class="flex w-full shrink-0 gap-2 sm:w-auto">
                                 <button type="submit" class="inline-flex h-10 min-w-[7rem] flex-1 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 sm:flex-none">Применить</button>
-                                <a href="{{ route('competitions.results') }}" data-competitions-results-ajax="1" class="inline-flex h-10 min-w-[7rem] flex-1 items-center justify-center rounded-lg border-2 border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 sm:flex-none">Сбросить</a>
+                                <a href="{{ $resetResultsUrl }}" data-competitions-results-ajax="1" class="inline-flex h-10 min-w-[7rem] flex-1 items-center justify-center rounded-lg border-2 border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 sm:flex-none">Сбросить</a>
                             </div>
                         </div>
                     </form>
+                </div>
+                <div id="competitions-results-sort-hidden-inputs" class="hidden" aria-hidden="true">
+                    @include('competitions.student.partials.sort-hidden-inputs', compact('cardsSortStack', 'listSortStack'))
                 </div>
             </div>
             <div class="flex shrink-0 flex-col">
@@ -190,6 +238,13 @@
             role="region"
             aria-label="Результаты соревнований"
         >
+        @include('competitions.partials.results-sort-tools', [
+            'resultsView' => $resultsView,
+            'cardsSortStack' => $cardsSortStack,
+            'listSortStack' => $listSortStack,
+            'resultsBaseParams' => $resultsBaseParams,
+        ])
+
         <!-- Завершенные соревнования (включая без мест) -->
         @php
             $finishedWithResults = $allFinishedCompetitionsForDisplay ?? collect();
@@ -197,219 +252,135 @@
             $allFinishedCompetitionsMerged = $finishedWithResults
                 ->concat($finishedWithoutResults)
                 ->unique('id')
-                ->sortByDesc('end_date')
                 ->values();
-            $finishedWithPlaces = $allFinishedCompetitionsMerged->filter(fn ($c) => $c->results->count() > 0);
-            $finishedWithoutPlaces = $allFinishedCompetitionsMerged->filter(fn ($c) => $c->results->count() === 0);
+            $finishedResultsListingItems = $finishedResultsListingItems ?? collect();
+            $finishedWithoutPlacesPage = $allFinishedCompetitionsWithoutResultsForDisplay ?? collect();
+            $hasFinishedWithPlaces = $finishedResultsListingItems->count() > 0;
+            $resultsParticipantColumnLabel = $finishedResultsListingItems->contains(
+                fn ($item) => ($item['competition'] ?? null)?->isPersonalCompetition()
+            ) ? 'Участник' : 'Участники';
         @endphp
-        @if(auth()->user()->role === 'student' || $allFinishedCompetitionsMerged->count() > 0)
+        @php
+            $isStudentResultsViewer = auth()->user()->role === 'student';
+            $hasFinishedWithoutPlaces = ! $isStudentResultsViewer && $finishedWithoutPlacesPage->count() > 0;
+        @endphp
+        @if($isStudentResultsViewer || $allFinishedCompetitionsMerged->count() > 0)
             <div>
-                @if(auth()->user()->role === 'student')
-                    @if($hasSearchFilters && $finishedWithPlaces->count() === 0)
-                        <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center text-gray-600">
-                            По заданным условиям поиска и фильтров ничего не найдено. <a href="{{ route('competitions.results') }}" data-competitions-results-ajax="1" class="font-medium text-blue-600 hover:text-blue-800">Сбросить фильтры</a>.
-                        </div>
-                    @elseif($finishedWithPlaces->count() > 0)
-                        <div data-results-list-wrap class="{{ $resultsView === 'cards' ? 'hidden' : '' }}">
-                            <div class="bg-white rounded-lg shadow-md overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Соревнование</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hidden sm:table-cell">Спорт</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Место</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hidden md:table-cell">Даты</th>
-                                            <th class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-200 bg-white">
-                                        @foreach($finishedWithPlaces as $competition)
-                                            @php
-                                                $sortedResults = $competition->results->sortBy(function ($r) {
-                                                    if (is_numeric($r->place)) {
-                                                        return (int) $r->place;
-                                                    }
-                                                    return 9999 + ord($r->place[0] ?? 'z');
-                                                })->values();
-                                            @endphp
-                                            @foreach($sortedResults as $result)
-                                                <tr>
-                                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $competition->name }}</td>
-                                                    <td class="px-4 py-3 text-sm text-gray-700 hidden sm:table-cell">{{ $competition->sport?->name ?? '—' }}</td>
-                                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $result->place }}</td>
-                                                    <td class="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
-                                                        {{ $competition->start_date->format('d.m.Y') }} – {{ $competition->end_date->format('d.m.Y') }}
-                                                    </td>
-                                                    <td class="px-4 py-3 text-right text-sm">
-                                                        <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="font-medium text-blue-600 hover:text-blue-800">Подробнее</a>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div data-results-cards-wrap class="{{ $resultsView === 'list' ? 'hidden' : '' }}">
-                            @include('competitions.partials.results-cards-grid', [
-                                'competitionsWithResults' => $finishedWithPlaces,
-                                'competitionShowQuery' => ['from' => 'results'],
-                            ])
-                        </div>
-                    @else
-                        <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center text-gray-600">
-                            Нет завершённых соревнований с распределёнными местами.
-                        </div>
-                    @endif
-                @else
-                @if(auth()->user()->role === 'teacher')
-                    @if($hasSearchFilters && $finishedWithPlaces->count() === 0 && $finishedWithoutPlaces->count() === 0)
-                        <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center text-gray-600 mb-4">
-                            По заданным условиям поиска и фильтров ничего не найдено. <a href="{{ route('competitions.results') }}" data-competitions-results-ajax="1" class="font-medium text-blue-600 hover:text-blue-800">Сбросить фильтры</a>.
-                        </div>
-                    @endif
+                @if($hasSearchFilters && ! $hasFinishedWithPlaces && ! $hasFinishedWithoutPlaces)
+                    <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center text-gray-600 mb-4">
+                        По заданным условиям поиска и фильтров ничего не найдено. <a href="{{ route('competitions.results') }}" data-competitions-results-ajax="1" class="font-medium text-blue-600 hover:text-blue-800">Сбросить фильтры</a>.
+                    </div>
+                @elseif($isStudentResultsViewer && ! $hasFinishedWithPlaces)
+                    <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center text-gray-600">
+                        Нет завершённых соревнований с распределёнными местами.
+                    </div>
                 @endif
-                @if(auth()->user()->role === 'teacher' && ($finishedWithPlaces->count() > 0 || $finishedWithoutPlaces->count() > 0))
+                @if($hasFinishedWithPlaces || $hasFinishedWithoutPlaces)
                 <div data-results-list-wrap class="{{ $resultsView === 'cards' ? 'hidden' : '' }}">
                 <div class="bg-white rounded-lg shadow-md overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="results-listing-table min-w-full border-collapse">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Соревнование</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Спорт</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Даты</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Категория</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Место</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Участники</th>
+                                <th class="border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                    @include('competitions.student.partials.table-sort-header', [
+                                        'listingRoute' => 'competitions.results',
+                                        'baseListingParams' => $resultsBaseParams,
+                                        'cardsSortStack' => $cardsSortStack,
+                                        'listSortStack' => $listSortStack,
+                                        'field' => 'name',
+                                        'label' => 'Соревнование',
+                                        'defaultOrder' => 'asc',
+                                        'listingAjaxAttr' => $resultsSortAjaxAttr,
+                                        'sortLinkExtra' => ['page' => 1, 'ongoing_page' => 1],
+                                    ])
+                                </th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 lg:table-cell">Спорт</th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">
+                                    @include('competitions.student.partials.table-sort-header', [
+                                        'listingRoute' => 'competitions.results',
+                                        'baseListingParams' => $resultsBaseParams,
+                                        'cardsSortStack' => $cardsSortStack,
+                                        'listSortStack' => $listSortStack,
+                                        'field' => 'start_date',
+                                        'label' => 'Даты',
+                                        'defaultOrder' => 'desc',
+                                        'listingAjaxAttr' => $resultsSortAjaxAttr,
+                                        'sortLinkExtra' => ['page' => 1, 'ongoing_page' => 1],
+                                    ])
+                                </th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">Категория</th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">Вид участия</th>
+                                <th class="border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Место</th>
+                                <th class="border-b border-gray-300 pl-6 pr-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{{ $resultsParticipantColumnLabel ?? 'Участники' }}</th>
                                 @if(auth()->user()->role === 'teacher')
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                                    <th class="border-b border-gray-300 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Действия</th>
                                 @endif
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200" id="finished-competitions-container">
-                            @foreach($finishedWithPlaces as $competition)
-                                @php
-                                    $sortedResults = $competition->results->sortBy(function($r) {
-                                        if (is_numeric($r->place)) {
-                                            return (int) $r->place;
-                                        }
-                                        return 9999 + ord($r->place[0] ?? 'z');
-                                    })->values();
-                                    $rowspan = max(1, $sortedResults->count());
-                                @endphp
-
-                                @if($sortedResults->count() > 0)
-                                    @foreach($sortedResults as $result)
-                                        <tr class="competition-row"
-                                            data-start-date="{{ $competition->start_date->format('Y-m-d') }}"
-                                            data-end-date="{{ $competition->end_date->format('Y-m-d') }}"
-                                            data-sport-id="{{ $competition->sport->id }}"
-                                            data-name="{{ mb_strtolower($competition->name) }}"
-                                        >
-                                            @if($loop->first)
-                                                <td class="px-4 py-3 align-top" rowspan="{{ $rowspan }}">
-                                                    <div class="font-semibold text-gray-900">
-                                                        <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="hover:text-blue-600 transition">
-                                                            {{ $competition->name }}
-                                                        </a>
-                                                    </div>
-                                                    <div class="text-sm text-gray-500 mt-1 lg:hidden">
-                                                        {{ $competition->sport?->name ?? '—' }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                                    </div>
-                                                </td>
-                                                <td class="px-4 py-3 text-sm text-gray-700 hidden lg:table-cell align-top" rowspan="{{ $rowspan }}">
-                                                    {{ $competition->sport?->name ?? '—' }}
-                                                </td>
-                                                <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top" rowspan="{{ $rowspan }}">
-                                                    {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                                </td>
-                                                <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top" rowspan="{{ $rowspan }}">
-                                                    {{ $competition->category->name_category ?? 'Не указана' }}
-                                                </td>
-                                            @endif
-
-                                            <td class="px-4 py-3 align-top">
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                    @if(is_numeric($result->place) && (int) $result->place === 1) bg-yellow-100 text-yellow-800
-                                                    @elseif(is_numeric($result->place) && (int) $result->place === 2) bg-gray-200 text-gray-800
-                                                    @elseif(is_numeric($result->place) && (int) $result->place === 3) bg-orange-100 text-orange-800
-                                                    @else bg-blue-100 text-blue-800
-                                                    @endif">
-                                                    {{ $result->place }}
-                                                </span>
-                                            </td>
-
-                                            <td class="px-4 py-3 whitespace-nowrap align-middle">
-                                                <div class="flex items-center min-h-[32px]">
-                                                    <a
-                                                        href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
-                                                        class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
-                                                    >
-                                                        Список участников
-                                                    </a>
-                                                </div>
-                                            </td>
-                                            @if(auth()->user()->role === 'teacher')
-                                                <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium">
-                                                    <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
-                                                        @if($loop->first)
-                                                            <a
-                                                                href="{{ route('competitions.photos', $competition) }}"
-                                                                class="text-indigo-600 hover:text-indigo-900 px-3 py-1 rounded hover:bg-indigo-50 transition whitespace-nowrap"
-                                                            >
-                                                                Добавить фотографии
-                                                            </a>
-                                                        @endif
-                                                    </div>
-                                                </td>
-                                            @endif
-                                        </tr>
-                                    @endforeach
-                                @endif
+                        <tbody class="bg-white" id="finished-competitions-container">
+                            @foreach($finishedResultsListingItems as $listingItem)
+                                @include('competitions.partials.results-list-row', [
+                                    'competition' => $listingItem['competition'],
+                                    'result' => $listingItem['result'],
+                                ])
                             @endforeach
 
                             <!-- Разделитель: соревнования без мест -->
-                            <tr id="finished-without-places-divider" class="{{ $finishedWithoutPlaces->count() > 0 ? '' : 'hidden' }}">
-                                <td colspan="{{ auth()->user()->role === 'teacher' ? 7 : 6 }}" class="px-4 py-3 bg-gray-50 text-sm font-semibold text-gray-700">
+                            <tr id="finished-without-places-divider" class="{{ $finishedWithoutPlacesPage->count() > 0 ? '' : 'hidden' }}">
+                                <td colspan="{{ auth()->user()->role === 'teacher' ? 8 : 7 }}" class="px-4 py-3 bg-gray-50 text-sm font-semibold text-gray-700">
                                     Соревнования без мест
                                 </td>
                             </tr>
 
-                            @foreach($finishedWithoutPlaces as $competition)
-                                <tr class="competition-row" data-group="without"
+                            @php
+                                $listingTd = 'px-4 py-3 align-top border-b border-gray-300';
+                                $listingTdParticipant = 'pl-6 pr-4 py-3 align-top border-b border-gray-300';
+                            @endphp
+                            @foreach($finishedWithoutPlacesPage as $competition)
+                                @php
+                                    $sportNameForCompetition = \App\Support\CompetitionResultPage::resolveSportNameForUser($competition, null);
+                                    $sportIdForCompetition = \App\Support\CompetitionResultPage::resolveSportIdForUser($competition, null);
+                                @endphp
+                                <tr class="competition-row results-listing-row" data-group="without"
+                                    data-competition-id="{{ $competition->id }}"
                                     data-start-date="{{ $competition->start_date->format('Y-m-d') }}"
                                     data-end-date="{{ $competition->end_date->format('Y-m-d') }}"
-                                    data-sport-id="{{ $competition->sport->id }}"
+                                    data-sport-id="{{ $sportIdForCompetition ?? '' }}"
                                     data-name="{{ mb_strtolower($competition->name) }}"
                                 >
-                                    <td class="px-4 py-3 align-top">
+                                    <td class="{{ $listingTd }}">
                                         <div class="font-semibold text-gray-900">
-                                            <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="hover:text-blue-600 transition">
+                                            <a href="{{ route('competitions.results.show', $competition) }}" class="hover:text-blue-600 transition">
                                                 {{ $competition->name }}
                                             </a>
                                         </div>
                                         <div class="text-sm text-gray-500 mt-1 lg:hidden">
-                                            {{ $competition->sport?->name ?? '—' }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
+                                            {{ $sportNameForCompetition }} • {{ $competition->resultFormatLabel() }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700 hidden lg:table-cell align-top">
-                                        {{ $competition->sport?->name ?? '—' }}
+                                    <td class="{{ $listingTd }} text-sm text-gray-700 hidden lg:table-cell">
+                                        {{ $sportNameForCompetition }}
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top">
+                                    <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
                                         {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top">
+                                    <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
                                         {{ $competition->category->name_category ?? 'Не указана' }}
                                     </td>
-                                    <td class="px-4 py-3 align-top">
+                                    @include('competitions.partials.participation-type-cell', [
+                                        'competition' => $competition,
+                                        'hiddenBreakpoint' => 'xl',
+                                        'cellClass' => $listingTd . ' whitespace-nowrap text-sm text-gray-700',
+                                    ])
+                                    <td class="{{ $listingTd }}">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                             Нет места
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap align-middle">
+                                    <td class="{{ $listingTdParticipant }} whitespace-nowrap">
                                         <div class="flex items-center min-h-[32px]">
                                             <a
-                                                href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
+                                                href="{{ route('competitions.results.show', $competition) }}"
                                                 class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
                                             >
                                                 Список участников
@@ -417,7 +388,7 @@
                                         </div>
                                     </td>
                                     @if(auth()->user()->role === 'teacher')
-                                        <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium">
+                                        <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium {{ $listingTd }}">
                                             <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
                                                 @include('competitions.partials.add-result-action', ['competition' => $competition])
                                                 <a
@@ -438,12 +409,11 @@
                 </div>
                 <div data-results-cards-wrap class="{{ $resultsView === 'list' ? 'hidden' : '' }}">
                     @include('competitions.partials.results-cards-grid', [
-                        'competitionsWithResults' => $finishedWithPlaces,
-                        'competitionsWithoutResults' => $finishedWithoutPlaces,
+                        'competitionsWithResults' => $allFinishedCompetitionsForDisplay,
+                        'competitionsWithoutResults' => $finishedWithoutPlacesPage,
                         'competitionShowQuery' => ['from' => 'results'],
                     ])
                 </div>
-                @endif
                 @endif
             </div>
         @endif
@@ -476,133 +446,103 @@
                 @endphp
                 <div data-results-list-wrap class="{{ $resultsView === 'cards' ? 'hidden' : '' }}">
                 <div class="bg-white rounded-lg shadow-md overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="results-listing-table min-w-full border-collapse">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Соревнование</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Спорт</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Даты</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Категория</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Место</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Участники</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                                <th class="border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                    @include('competitions.student.partials.table-sort-header', [
+                                        'listingRoute' => 'competitions.results',
+                                        'baseListingParams' => $resultsBaseParams,
+                                        'cardsSortStack' => $cardsSortStack,
+                                        'listSortStack' => $listSortStack,
+                                        'field' => 'name',
+                                        'label' => 'Соревнование',
+                                        'defaultOrder' => 'asc',
+                                        'listingAjaxAttr' => $resultsSortAjaxAttr,
+                                        'sortLinkExtra' => ['page' => 1, 'ongoing_page' => 1],
+                                    ])
+                                </th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 lg:table-cell">Спорт</th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">
+                                    @include('competitions.student.partials.table-sort-header', [
+                                        'listingRoute' => 'competitions.results',
+                                        'baseListingParams' => $resultsBaseParams,
+                                        'cardsSortStack' => $cardsSortStack,
+                                        'listSortStack' => $listSortStack,
+                                        'field' => 'start_date',
+                                        'label' => 'Даты',
+                                        'defaultOrder' => 'desc',
+                                        'listingAjaxAttr' => $resultsSortAjaxAttr,
+                                        'sortLinkExtra' => ['page' => 1, 'ongoing_page' => 1],
+                                    ])
+                                </th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">Категория</th>
+                                <th class="hidden border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">Вид участия</th>
+                                <th class="border-b border-gray-300 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Место</th>
+                                <th class="border-b border-gray-300 pl-6 pr-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Участники</th>
+                                <th class="border-b border-gray-300 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Действия</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white">
+                            @php
+                                $listingTd = 'px-4 py-3 align-top border-b border-gray-300';
+                                $listingTdParticipant = 'pl-6 pr-4 py-3 align-top border-b border-gray-300';
+                            @endphp
                             @foreach($allOngoingCompetitionsForDisplay as $competition)
                                 @php
-                                    $sortedResults = $competition->results->sortBy(function($r) {
-                                        if (is_numeric($r->place)) {
-                                            return (int) $r->place;
-                                        }
-                                        return 9999 + ord($r->place[0] ?? 'z');
-                                    })->values();
-                                    $rowspan = max(1, $sortedResults->count());
+                                    $sortedResults = \App\Support\CompetitionResultPage::sortedResultsForListing($competition);
                                 @endphp
 
                                 @if($sortedResults->count() > 0)
                                     @foreach($sortedResults as $result)
-                                        <tr>
-                                            @if($loop->first)
-                                                <td class="px-4 py-3 align-top" rowspan="{{ $rowspan }}">
-                                                    <div class="font-semibold text-gray-900">
-                                                        <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="hover:text-blue-600 transition">
-                                                            {{ $competition->name }}
-                                                        </a>
-                                                    </div>
-                                                    <div class="text-sm text-gray-500 mt-1 lg:hidden">
-                                                        {{ $competition->sport?->name ?? '—' }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                                    </div>
-                                                </td>
-                                                <td class="px-4 py-3 text-sm text-gray-700 hidden lg:table-cell align-top" rowspan="{{ $rowspan }}">
-                                                    {{ $competition->sport?->name ?? '—' }}
-                                                </td>
-                                                <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top" rowspan="{{ $rowspan }}">
-                                                    {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                                </td>
-                                                <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top" rowspan="{{ $rowspan }}">
-                                                    {{ $competition->category->name_category ?? 'Не указана' }}
-                                                </td>
-                                            @endif
-
-                                            <td class="px-4 py-3 align-top">
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                    @if(is_numeric($result->place) && (int) $result->place === 1) bg-yellow-100 text-yellow-800
-                                                    @elseif(is_numeric($result->place) && (int) $result->place === 2) bg-gray-200 text-gray-800
-                                                    @elseif(is_numeric($result->place) && (int) $result->place === 3) bg-orange-100 text-orange-800
-                                                    @else bg-blue-100 text-blue-800
-                                                    @endif">
-                                                    {{ $result->place }}
-                                                </span>
-                                            </td>
-
-                                            <td class="px-4 py-3 whitespace-nowrap align-middle">
-                                                <div class="flex items-center min-h-[32px]">
-                                                    <a
-                                                        href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
-                                                        class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
-                                                    >
-                                                        Список участников
-                                                    </a>
-                                                </div>
-                                            </td>
-                                            <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium">
-                                                <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
-                                                    @if($loop->first)
-                                                        <a
-                                                            href="{{ route('competitions.photos', $competition) }}"
-                                                            class="text-indigo-600 hover:text-indigo-900 px-3 py-1 rounded hover:bg-indigo-50 transition whitespace-nowrap"
-                                                        >
-                                                            Добавить фотографии
-                                                        </a>
-                                                    @endif
-                                                    <a
-                                                        href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
-                                                        class="text-gray-700 hover:text-gray-900 px-3 py-1 rounded hover:bg-gray-100 transition"
-                                                    >
-                                                        Подробнее
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                        @include('competitions.partials.results-list-row', [
+                                            'competition' => $competition,
+                                            'result' => $result,
+                                            'showDetailLink' => true,
+                                        ])
                                     @endforeach
                                 @else
-                                    <tr>
-                                        <td class="px-4 py-3 align-top">
+                                    <tr class="competition-row results-listing-row" data-competition-id="{{ $competition->id }}">
+                                        <td class="{{ $listingTd }}">
                                             <div class="font-semibold text-gray-900">
-                                                <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="hover:text-blue-600 transition">
+                                                <a href="{{ route('competitions.results.show', $competition) }}" class="hover:text-blue-600 transition">
                                                     {{ $competition->name }}
                                                 </a>
                                             </div>
                                             <div class="text-sm text-gray-500 mt-1 lg:hidden">
-                                                {{ $competition->sport?->name ?? '—' }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
+                                                {{ $competition->sport?->name ?? '—' }} • {{ $competition->resultFormatLabel() }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
                                             </div>
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-700 hidden lg:table-cell align-top">
+                                        <td class="{{ $listingTd }} text-sm text-gray-700 hidden lg:table-cell">
                                             {{ $competition->sport?->name ?? '—' }}
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top">
+                                        <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
                                             {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
                                         </td>
-                                        <td class="px-4 py-3 text-sm text-gray-700 hidden xl:table-cell align-top">
+                                        <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
                                             {{ $competition->category->name_category ?? 'Не указана' }}
                                         </td>
-                                        <td class="px-4 py-3 align-top">
+                                        @include('competitions.partials.participation-type-cell', [
+                                            'competition' => $competition,
+                                            'hiddenBreakpoint' => 'xl',
+                                            'cellClass' => $listingTd . ' whitespace-nowrap text-sm text-gray-700',
+                                        ])
+                                        <td class="{{ $listingTd }}">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                                 Нет места
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 whitespace-nowrap align-middle">
+                                        <td class="{{ $listingTdParticipant }} whitespace-nowrap">
                                             <div class="flex items-center min-h-[32px]">
                                                 <a
-                                                    href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
+                                                    href="{{ route('competitions.results.show', $competition) }}"
                                                     class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
                                                 >
                                                     Список участников
                                                 </a>
                                             </div>
                                         </td>
-                                        <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium">
+                                        <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium {{ $listingTd }}">
                                             <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
                                                 @include('competitions.partials.add-result-action', ['competition' => $competition])
                                                 <a
@@ -612,7 +552,7 @@
                                                     Добавить фотографии
                                                 </a>
                                                 <a
-                                                    href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
+                                                    href="{{ route('competitions.results.show', $competition) }}"
                                                     class="text-gray-700 hover:text-gray-900 px-3 py-1 rounded hover:bg-gray-100 transition"
                                                 >
                                                     Подробнее
@@ -678,6 +618,8 @@
 (function () {
     const VIEW_STORAGE_KEY = 'competitions_results_view';
     const PER_PAGE_STORAGE_KEY = 'competitions_results_per_page';
+    const SORT_STORAGE_KEY = 'competitions_results_sort';
+    const sortHiddenWrapId = 'competitions-results-sort-hidden-inputs';
     const form = document.getElementById('competitions-results-filters-form');
 
     function getStoredViewMode() {
@@ -712,6 +654,9 @@
             el.classList.toggle('hidden', isCards);
         });
         document.querySelectorAll('[data-results-cards-wrap]').forEach(function (el) {
+            el.classList.toggle('hidden', !isCards);
+        });
+        document.querySelectorAll('[data-results-cards-sort-wrap]').forEach(function (el) {
             el.classList.toggle('hidden', !isCards);
         });
         const btnList = document.getElementById('competitions-results-view-list');
@@ -762,12 +707,146 @@
         }
     }
 
+    function getSortWrap() {
+        return document.getElementById(sortHiddenWrapId);
+    }
+
+    function removeSortParams(params) {
+        ['cards_sort', 'cards_order', 'list_sort', 'list_order'].forEach(function (key) {
+            while (params.has(key)) {
+                params.delete(key);
+            }
+        });
+    }
+
+    function appendSortParams(params) {
+        const wrap = getSortWrap();
+        if (!wrap) {
+            return;
+        }
+        removeSortParams(params);
+        wrap.querySelectorAll('input[name]').forEach(function (input) {
+            if (!input.name) {
+                return;
+            }
+            if (input.name.endsWith('[]')) {
+                params.append(input.name, input.value);
+            } else {
+                params.set(input.name, input.value);
+            }
+        });
+    }
+
+    function replaceSortHiddenInputs(doc) {
+        const nextWrap = doc.getElementById(sortHiddenWrapId);
+        const liveWrap = getSortWrap();
+        if (nextWrap && liveWrap) {
+            liveWrap.replaceWith(document.importNode(nextWrap, true));
+        }
+    }
+
+    function readStacksFromWrap() {
+        const wrap = getSortWrap();
+        if (!wrap) {
+            return { cards: null, list: null };
+        }
+
+        function readPrefix(prefix) {
+            const scalar = wrap.querySelector('input[name="' + prefix + '_sort"]');
+            if (scalar && scalar.value === 'none') {
+                return [];
+            }
+            const fields = Array.from(wrap.querySelectorAll('input[name="' + prefix + '_sort[]"]')).map(function (el) {
+                return el.value;
+            });
+            const orders = Array.from(wrap.querySelectorAll('input[name="' + prefix + '_order[]"]')).map(function (el) {
+                return el.value;
+            });
+            if (fields.length === 0) {
+                return null;
+            }
+
+            return fields.map(function (field, index) {
+                return { field: field, order: orders[index] || 'asc' };
+            });
+        }
+
+        return { cards: readPrefix('cards'), list: readPrefix('list') };
+    }
+
+    function renderStacksToWrap(stored) {
+        const wrap = getSortWrap();
+        if (!wrap || !stored) {
+            return;
+        }
+
+        wrap.innerHTML = '';
+
+        function render(prefix, stack) {
+            if (stack === null || stack === undefined) {
+                return;
+            }
+            if (!stack.length) {
+                const none = document.createElement('input');
+                none.type = 'hidden';
+                none.name = prefix + '_sort';
+                none.value = 'none';
+                wrap.appendChild(none);
+                return;
+            }
+            stack.forEach(function (item) {
+                const fieldInput = document.createElement('input');
+                fieldInput.type = 'hidden';
+                fieldInput.name = prefix + '_sort[]';
+                fieldInput.value = item.field;
+                const orderInput = document.createElement('input');
+                orderInput.type = 'hidden';
+                orderInput.name = prefix + '_order[]';
+                orderInput.value = item.order === 'desc' ? 'desc' : 'asc';
+                wrap.appendChild(fieldInput);
+                wrap.appendChild(orderInput);
+            });
+        }
+
+        render('cards', stored.cards);
+        if (stored.list !== null && stored.list !== undefined && stored.list.length > 0) {
+            render('list', stored.list);
+        }
+    }
+
+    function persistSortStacks() {
+        const stacks = readStacksFromWrap();
+        const payload = { cards: stacks.cards, list: stacks.list };
+        if (payload.list && payload.list.length === 1
+            && payload.list[0].field === 'start_date'
+            && payload.list[0].order === 'desc') {
+            payload.list = null;
+        }
+        try {
+            localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(payload));
+        } catch (e) {}
+    }
+
+    function loadSortStacksFromStorage() {
+        try {
+            const raw = localStorage.getItem(SORT_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function urlHasExplicitSort(params) {
+        return params.has('cards_sort') || params.has('list_sort');
+    }
+
     function buildResultsUrl() {
         const url = new URL(form.action, window.location.origin);
         const params = new URLSearchParams(new FormData(form));
         params.forEach(function (value, key) {
             if (value === '') params.delete(key);
         });
+        appendSortParams(params);
         if (params.get('view') === 'list') {
             params.delete('view');
         }
@@ -780,7 +859,7 @@
         if (viewEl) {
             viewEl.value = params.get('view') === 'cards' ? 'cards' : 'list';
         }
-        ['q', 'sport_id', 'date_from', 'date_to', 'place', 'per_page'].forEach(function (name) {
+        ['q', 'sport_id', 'competition_category_id', 'date_from', 'date_to', 'place', 'per_page'].forEach(function (name) {
             const el = form.elements.namedItem(name);
             if (!el) return;
             el.value = params.has(name) ? params.get(name) : '';
@@ -816,8 +895,11 @@
             if (!nextResults) return;
 
             resultsEl.replaceWith(document.importNode(nextResults, true));
+            replaceSortHiddenInputs(doc);
+            persistSortStacks();
             applyQueryToForm(url.searchParams);
             document.dispatchEvent(new CustomEvent('sport-combobox:sync'));
+            document.dispatchEvent(new CustomEvent('filter-combobox:sync'));
             applyResultsViewMode(getServerViewMode());
 
             const path = url.pathname + (url.search ? url.search : '');
@@ -861,6 +943,7 @@
             syncViewToForm(mode);
             applyResultsViewMode(mode);
             updateResultsViewInUrl(mode);
+            scheduleNow();
             return;
         }
 
@@ -919,15 +1002,39 @@
         scheduleNow();
     });
 
+    let needsInitialRefresh = false;
+
+    (function initSortFromStorage() {
+        const url = new URL(window.location.href);
+        if (urlHasExplicitSort(url.searchParams)) {
+            persistSortStacks();
+            return;
+        }
+        const stored = loadSortStacksFromStorage();
+        if (!stored) {
+            return;
+        }
+        const before = JSON.stringify(readStacksFromWrap());
+        renderStacksToWrap(stored);
+        if (JSON.stringify(readStacksFromWrap()) !== before) {
+            needsInitialRefresh = true;
+        }
+    })();
+
     const serverView = getServerViewMode();
     const storedView = getStoredViewMode();
     if (storedView !== serverView) {
         syncViewToForm(storedView);
         applyResultsViewMode(storedView);
         updateResultsViewInUrl(storedView);
+        needsInitialRefresh = true;
     } else {
         persistViewMode(serverView);
         applyResultsViewMode(serverView);
+    }
+
+    if (needsInitialRefresh) {
+        scheduleNow();
     }
 })();
 </script>

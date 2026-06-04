@@ -41,4 +41,9 @@ class Team extends Model
     {
         return $this->hasMany(CompetitionResult::class, 'teams_id');
     }
+
+    public function trainingSessions()
+    {
+        return $this->hasMany(TrainingSession::class);
+    }
 }

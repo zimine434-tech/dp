@@ -322,7 +322,7 @@
                             <div class="flex min-h-0 flex-1 flex-col p-5">
                                 <div class="mb-2 flex shrink-0 items-start justify-between gap-3">
                                     <h3 class="min-w-0 flex-1 text-lg font-semibold leading-snug text-gray-900">
-                                        <a href="{{ route('guest.competitions.show', ['competition' => $result->competition]) }}" class="hover:text-blue-600 transition">
+                                        <a href="{{ route('guest.results.show', ['competition' => $result->competition]) }}" class="hover:text-blue-600 transition">
                                             {{ $result->competition->name }}
                                         </a>
                                     </h3>
@@ -368,7 +368,7 @@
                                     @endif
                                 </div>
                                 <a
-                                    href="{{ route('guest.competitions.show', ['competition' => $result->competition]) }}"
+                                    href="{{ route('guest.results.show', ['competition' => $result->competition]) }}"
                                     class="mt-4 block shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-700"
                                 >
                                     Подробнее

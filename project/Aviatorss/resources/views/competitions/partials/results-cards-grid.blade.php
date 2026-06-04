@@ -12,13 +12,7 @@
 <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
     @foreach($competitionsWithResults as $competition)
         @php
-            $sortedResults = $competition->results->sortBy(function ($r) {
-                if (is_numeric($r->place)) {
-                    return (int) $r->place;
-                }
-
-                return 9999 + ord($r->place[0] ?? 'z');
-            })->values();
+            $sortedResults = \App\Support\CompetitionResultPage::sortedResultsForListing($competition);
         @endphp
         @foreach($sortedResults as $result)
             <div class="min-w-0">

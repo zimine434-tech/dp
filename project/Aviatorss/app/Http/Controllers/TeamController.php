@@ -6,6 +6,7 @@ use App\Concerns\InteractsWithLdapStudentDirectory;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\TeamMember;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -78,7 +79,9 @@ class TeamController extends Controller
             'members' => fn ($q) => $q->with(['user', 'addedBy', 'removedBy'])->orderBy('joined_at', 'desc'),
         ]);
 
-        return view('teams.teacher.show', compact('team'));
+        $nearestTraining = $this->nearestUpcomingTrainingForTeam($team);
+
+        return view('teams.teacher.show', compact('team', 'nearestTraining'));
     }
 
     /**
@@ -498,7 +501,20 @@ class TeamController extends Controller
             ->latest('created_at')
             ->first();
 
-        return view('teams.student.show', compact('team', 'joinRequest'));
+        $nearestTraining = $this->nearestUpcomingTrainingForTeam($team);
+
+        return view('teams.student.show', compact('team', 'joinRequest', 'nearestTraining'));
+    }
+
+    private function nearestUpcomingTrainingForTeam(Team $team): ?TrainingSession
+    {
+        return TrainingSession::query()
+            ->with(['sport', 'location'])
+            ->where('team_id', $team->id)
+            ->whereNotIn('status', ['cancelled', 'completed'])
+            ->where('end_time', '>=', now())
+            ->orderBy('start_time')
+            ->first();
     }
 }
 

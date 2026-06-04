@@ -61,7 +61,7 @@
                         type="file"
                         name="images[]"
                         id="images"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,image/avif,.jpg,.jpeg,.png,.gif,.webp,.bmp,.avif"
                         multiple
                         required
                         class="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
@@ -71,7 +71,9 @@
                     Загрузить
                 </button>
                 @if (request()->boolean('upload_err'))
-                    <p class="text-sm text-red-600 pt-2" role="alert">Превышен размер файла.</p>
+                    <p class="text-sm text-red-600 pt-2" role="alert">
+                        Превышен общий размер запроса. Загрузите меньше файлов за раз или уменьшите размер фото.
+                    </p>
                 @endif
             </form>
         </div>

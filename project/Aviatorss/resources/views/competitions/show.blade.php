@@ -2,6 +2,14 @@
 
 @section('title', 'Детали соревнования')
 
+@push('styles')
+<style>
+    .results-listing-table tbody tr.results-listing-row:hover > td {
+        background-color: #f9fafb;
+    }
+</style>
+@endpush
+
 @section('content')
     <div class="max-w-4xl mx-auto space-y-6">
         <!-- Сообщения об успехе/ошибке -->
@@ -324,7 +332,8 @@
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Фамилия</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Имя</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Группа</th>
-                            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Команда / спорт</th>
+                            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Команда</th>
+                            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид спорта</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Роль</th>
                             <th class="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
                         </tr>
@@ -1957,13 +1966,17 @@
 
         <!-- Результаты соревнования -->
         @php
-            $hasCompetitionResult = $competition->results->count() > 0;
             $resultsType = $competition->result_type ?? 'team';
+            $hasCompetitionResult = $competition->results
+                ->when($resultsType === 'personal', fn ($c) => $c->where('result_type', 'personal'))
+                ->when($resultsType !== 'personal', fn ($c) => $c->where('result_type', 'team'))
+                ->contains(fn ($r) => filled(trim((string) ($r->place ?? ''))));
         @endphp
         <div
             id="competition-results"
             class="bg-white rounded-lg shadow-md p-6"
             data-competition-id="{{ $competition->id }}"
+            data-results-type="{{ $resultsType }}"
             data-has-result="{{ $hasCompetitionResult ? '1' : '0' }}"
         >
             <div id="competition-results-feedback" class="hidden mb-4" role="status"></div>
@@ -2006,6 +2019,8 @@
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Студент</th>
+                                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Команда</th>
+                                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид спорта</th>
                                         <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Место</th>
                                     </tr>
                                 </thead>
@@ -2018,6 +2033,8 @@
                                         @endphp
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-3 py-3 text-sm text-gray-900">{{ $u->lastname }} {{ $u->firstname }}</td>
+                                            <td class="px-3 py-3 text-sm text-gray-900">{{ $p->team?->name ?? '—' }}</td>
+                                            <td class="px-3 py-3 text-sm text-gray-900">{{ $p->team?->sport?->name ?? '—' }}</td>
                                             <td class="px-3 py-3">
                                                 <input
                                                     type="text"
@@ -2118,58 +2135,33 @@
                 </div>
 
                 <div id="competition-results-list">
-                @if($competition->results->count() > 0)
+                @php
+                    $displayCompetitionResults = \App\Support\CompetitionResultPage::sortedResultsForListing($competition);
+                @endphp
+                @if($displayCompetitionResults->count() > 0)
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
+                        <table class="results-listing-table min-w-full border-collapse">
                             <thead class="bg-gray-50">
                                 <tr>
-                                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Место</th>
-                                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Категория</th>
-                                <th class="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                                    @if($resultsType === 'personal')
+                                        <th class="border-b border-gray-300 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Соревнование</th>
+                                    @endif
+                                    <th class="border-b border-gray-300 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Место</th>
+                                    @if($resultsType === 'personal')
+                                        <th class="border-b border-gray-300 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Участник</th>
+                                        <th class="border-b border-gray-300 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид спорта</th>
+                                    @else
+                                        <th class="border-b border-gray-300 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Категория</th>
+                                    @endif
+                                    <th class="border-b border-gray-300 px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
                                 </tr>
                             </thead>
-                            <tbody id="competition-results-tbody" class="bg-white divide-y divide-gray-200">
-                                @foreach($competition->results->sortBy(function($r) {
-                                    // Сортируем: сначала числа, потом текст
-                                    if (is_numeric($r->place)) {
-                                        return (int)$r->place;
-                                    }
-                                    return 9999 + ord($r->place[0] ?? 'z');
-                                }) as $result)
-                                    <tr>
-                                        <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                                            <span class="text-sm font-medium text-gray-900">{{ $result->place }}</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                                            <span class="text-sm text-gray-900">{{ $competition->category->name_category ?? 'Не указана' }}</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-3 sm:py-4 text-right text-sm font-medium">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <button 
-                                                    type="button"
-                                                    onclick="editResult({{ $result->id }}, '{{ addslashes($result->place) }}')"
-                                                    class="text-blue-600 hover:text-blue-900 px-3 py-1 rounded hover:bg-blue-50 transition"
-                                                >
-                                                    Редактировать
-                                                </button>
-                                                <form 
-                                                    action="{{ route('competitions.results.destroy', [$competition, $result]) }}" 
-                                                    method="POST" 
-                                                    class="inline"
-                                                    onsubmit="return confirm('Вы уверены, что хотите удалить этот результат?')"
-                                                >
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button 
-                                                        type="submit" 
-                                                        class="text-red-600 hover:text-red-900 px-3 py-1 rounded hover:bg-red-50 transition"
-                                                    >
-                                                        Удалить
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
+                            <tbody id="competition-results-tbody" class="bg-white">
+                                @foreach($displayCompetitionResults as $result)
+                                    @include('competitions.partials.competition-show-result-row', [
+                                        'competition' => $competition,
+                                        'result' => $result,
+                                    ])
                                 @endforeach
                             </tbody>
                         </table>
@@ -2927,13 +2919,18 @@
 
                     if (!resultsTable && resultsList) {
                         document.getElementById('competition-results-empty')?.remove();
+                        const resultsType = document.getElementById('competition-results')?.dataset.resultsType || 'team';
+                        const middleHeaders = resultsType === 'personal'
+                            ? `<th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Участник</th>
+                               <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид спорта</th>`
+                            : `<th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Категория</th>`;
                         resultsList.innerHTML = `
                             <div class="overflow-x-auto">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Место</th>
-                                            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Категория</th>
+                                            ${middleHeaders}
                                             <th class="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
                                         </tr>
                                     </thead>

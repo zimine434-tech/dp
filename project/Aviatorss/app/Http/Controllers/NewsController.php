@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\News;
 use App\Models\NewsImage;
+use App\Support\NewsListingSort;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -44,23 +45,25 @@ class NewsController extends Controller
         $showPublished = in_array($newsStatus, ['all', 'published'], true);
         $showDraft = in_array($newsStatus, ['all', 'draft'], true);
 
+        $cardsSortStack = NewsListingSort::parseStack($request);
+
         $publishedQuery = News::with(['creator', 'images'])
-            ->where('status', 'Published')
-            ->latest('date');
+            ->where('status', 'Published');
         if ($onlyMine) {
             $publishedQuery->where('created_by', auth()->id());
         }
         $this->applyNewsNameSearch($publishedQuery, $q);
         $this->applyNewsDateRange($publishedQuery, $dateFrom, $dateTo);
+        NewsListingSort::applyToQuery($publishedQuery, $cardsSortStack);
 
         $draftQuery = News::with(['creator', 'images'])
-            ->where('status', 'Draft')
-            ->latest('date');
+            ->where('status', 'Draft');
         if ($onlyMine) {
             $draftQuery->where('created_by', auth()->id());
         }
         $this->applyNewsNameSearch($draftQuery, $q);
         $this->applyNewsDateRange($draftQuery, $dateFrom, $dateTo);
+        NewsListingSort::applyToQuery($draftQuery, $cardsSortStack);
 
         $publishedNews = $showPublished
             ? (clone $publishedQuery)->paginate($perPage, ['*'], 'published')->withQueryString()
@@ -109,22 +112,23 @@ class NewsController extends Controller
                 }
             }
 
-            return response()->json([
-                'published' => [
-                    'html' => $publishedHtml,
-                    'pagination' => $publishedPagination,
-                ],
-                'draft' => [
-                    'html' => $draftHtml,
-                    'pagination' => $draftPagination,
-                ],
-                'meta' => [
-                    'published_total' => $publishedTotal,
-                    'draft_total' => $draftTotal,
-                    'show_published' => $showPublished,
-                    'show_draft' => $showDraft,
-                ],
-            ]);
+            return response()->json($this->newsListingAjaxPayload(
+                $onlyMine,
+                $q,
+                $dateFrom,
+                $dateTo,
+                $newsStatus,
+                $perPage,
+                $cardsSortStack,
+                $publishedHtml,
+                $publishedPagination,
+                $draftHtml,
+                $draftPagination,
+                $publishedTotal,
+                $draftTotal,
+                $showPublished,
+                $showDraft,
+            ));
         }
 
         return view('news.index', compact(
@@ -140,6 +144,7 @@ class NewsController extends Controller
             'publishedTotal',
             'draftTotal',
             'onlyMine',
+            'cardsSortStack',
         ));
     }
 
@@ -181,19 +186,21 @@ class NewsController extends Controller
         $showPublished = in_array($newsStatus, ['all', 'published'], true);
         $showDraft = in_array($newsStatus, ['all', 'draft'], true);
 
+        $cardsSortStack = NewsListingSort::parseStack($request);
+
         $publishedQuery = News::with(['creator', 'images'])
             ->where('status', 'Published')
-            ->where('created_by', $user->id)
-            ->latest('date');
+            ->where('created_by', $user->id);
         $this->applyNewsNameSearch($publishedQuery, $q);
         $this->applyNewsDateRange($publishedQuery, $dateFrom, $dateTo);
+        NewsListingSort::applyToQuery($publishedQuery, $cardsSortStack);
 
         $draftQuery = News::with(['creator', 'images'])
             ->where('status', 'Draft')
-            ->where('created_by', $user->id)
-            ->latest('date');
+            ->where('created_by', $user->id);
         $this->applyNewsNameSearch($draftQuery, $q);
         $this->applyNewsDateRange($draftQuery, $dateFrom, $dateTo);
+        NewsListingSort::applyToQuery($draftQuery, $cardsSortStack);
 
         $publishedNews = $showPublished
             ? (clone $publishedQuery)->paginate($perPage, ['*'], 'published')->withQueryString()
@@ -241,22 +248,23 @@ class NewsController extends Controller
                 }
             }
 
-            return response()->json([
-                'published' => [
-                    'html' => $publishedHtml,
-                    'pagination' => $publishedPagination,
-                ],
-                'draft' => [
-                    'html' => $draftHtml,
-                    'pagination' => $draftPagination,
-                ],
-                'meta' => [
-                    'published_total' => $publishedTotal,
-                    'draft_total' => $draftTotal,
-                    'show_published' => $showPublished,
-                    'show_draft' => $showDraft,
-                ],
-            ]);
+            return response()->json($this->newsListingAjaxPayload(
+                true,
+                $q,
+                $dateFrom,
+                $dateTo,
+                $newsStatus,
+                $perPage,
+                $cardsSortStack,
+                $publishedHtml,
+                $publishedPagination,
+                $draftHtml,
+                $draftPagination,
+                $publishedTotal,
+                $draftTotal,
+                $showPublished,
+                $showDraft,
+            ));
         }
 
         $onlyMine = true;
@@ -274,7 +282,83 @@ class NewsController extends Controller
             'publishedTotal',
             'draftTotal',
             'onlyMine',
+            'cardsSortStack',
         ));
+    }
+
+    /**
+     * @param  array<int, array{field: string, order: string}>  $cardsSortStack
+     * @return array<string, mixed>
+     */
+    protected function newsListingAjaxPayload(
+        bool $onlyMine,
+        string $q,
+        ?string $dateFrom,
+        ?string $dateTo,
+        string $newsStatus,
+        int $perPage,
+        array $cardsSortStack,
+        string $publishedHtml,
+        string $publishedPagination,
+        string $draftHtml,
+        string $draftPagination,
+        int $publishedTotal,
+        int $draftTotal,
+        bool $showPublished,
+        bool $showDraft,
+    ): array {
+        return [
+            'published' => [
+                'html' => $publishedHtml,
+                'pagination' => $publishedPagination,
+            ],
+            'draft' => [
+                'html' => $draftHtml,
+                'pagination' => $draftPagination,
+            ],
+            'sort_bar_html' => $this->renderNewsSortBarHtml(
+                $onlyMine,
+                $q,
+                $dateFrom,
+                $dateTo,
+                $newsStatus,
+                $perPage,
+                $cardsSortStack,
+            ),
+            'meta' => [
+                'published_total' => $publishedTotal,
+                'draft_total' => $draftTotal,
+                'show_published' => $showPublished,
+                'show_draft' => $showDraft,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<int, array{field: string, order: string}>  $cardsSortStack
+     */
+    protected function renderNewsSortBarHtml(
+        bool $onlyMine,
+        string $q,
+        ?string $dateFrom,
+        ?string $dateTo,
+        string $newsStatus,
+        int $perPage,
+        array $cardsSortStack,
+    ): string {
+        $baseListingParams = array_filter([
+            'q' => $q !== '' ? $q : null,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'news_status' => $newsStatus !== 'all' ? $newsStatus : null,
+            'per_page' => $perPage !== 10 ? (string) $perPage : null,
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        return view('news.partials.news-sort-bar', [
+            'listingRoute' => $onlyMine ? 'news.my' : 'news.index',
+            'baseListingParams' => $baseListingParams,
+            'cardsSortStack' => $cardsSortStack,
+        ])->render();
     }
 
     /**
@@ -507,15 +591,17 @@ class NewsController extends Controller
 
         $q = $listingFilters['q'];
 
+        $cardsSortStack = NewsListingSort::parseStack($request);
+
         $publishedQuery = News::with(['creator', 'images'])
-            ->where('status', 'Published')
-            ->latest('date');
+            ->where('status', 'Published');
         $this->applyNewsNameSearch($publishedQuery, $q);
         $this->applyNewsDateRange($publishedQuery, $dateFrom, $dateTo);
+        NewsListingSort::applyToQuery($publishedQuery, $cardsSortStack);
 
         $publishedNews = $publishedQuery->paginate($perPage)->withQueryString();
 
-        return view('news.student.index', compact('publishedNews', 'listingFilters', 'perPage'));
+        return view('news.student.index', compact('publishedNews', 'listingFilters', 'perPage', 'cardsSortStack'));
     }
 
     /**

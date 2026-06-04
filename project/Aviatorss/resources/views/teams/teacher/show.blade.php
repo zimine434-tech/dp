@@ -2,6 +2,31 @@
 
 @section('title', $team->name)
 
+@push('styles')
+<style>
+    #team-tab-panels {
+        position: relative;
+    }
+    #team-tab-panels > .tab-content.hidden {
+        display: none !important;
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    @media (min-width: 1024px) {
+        #team-overview-left-card {
+            height: 100%;
+        }
+    }
+</style>
+@endpush
+
 @section('content')
     <div class="space-y-4 sm:space-y-6">
         <!-- Заголовок -->
@@ -99,31 +124,31 @@
                 ->values();
         @endphp
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div id="team-overview-columns" class="flex flex-col items-stretch gap-6 lg:flex-row">
             <!-- Основная информация с табами -->
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-lg shadow-md">
+            <div id="team-overview-left-wrap" class="flex min-w-0 w-full flex-col lg:flex-[2]">
+                <div id="team-overview-left-card" class="flex min-h-0 flex-1 flex-col rounded-lg bg-white shadow-md lg:min-h-full">
                     <!-- Табы -->
                     <div class="border-b border-gray-200">
                         <nav class="flex -mb-px" aria-label="Tabs">
                             <button 
                                 onclick="switchTab('description')" 
                                 id="tab-description"
-                                class="tab-button px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"
+                                class="tab-button px-5 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"
                             >
                                 Описание команды
                             </button>
                             <button 
                                 onclick="switchTab('add-member')" 
                                 id="tab-add-member"
-                                class="tab-button active px-6 py-4 text-sm font-medium text-blue-600 border-b-2 border-blue-600"
+                                class="tab-button active px-5 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600"
                             >
                                 Добавить участника
                             </button>
                             <button 
                                 onclick="switchTab('join-requests')" 
                                 id="tab-join-requests"
-                                class="tab-button px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"
+                                class="tab-button px-5 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"
                             >
                                 Заявки
                                 @if(($pendingJoinRequestsCount ?? 0) > 0)
@@ -135,7 +160,7 @@
                             <button 
                                 onclick="switchTab('remove-member')" 
                                 id="tab-remove-member"
-                                class="tab-button px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"
+                                class="tab-button px-5 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-gray-300"
                             >
                                 Удалить участника
                             </button>
@@ -143,10 +168,10 @@
                     </div>
 
                     <!-- Контент табов -->
-                    <div class="p-6">
+                    <div id="team-tab-panels" class="flex min-h-0 flex-1 flex-col p-4">
                         <!-- Таб: Описание -->
-                        <div id="content-description" class="tab-content hidden">
-                            <h2 class="text-xl font-semibold text-gray-800 mb-4">Описание команды</h2>
+                        <div id="content-description" class="tab-content hidden w-full">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-3">Описание команды</h2>
                             @if(filled($team->description))
                                 @include('partials.rich-text', ['html' => $team->description, 'class' => 'text-gray-700'])
                             @else
@@ -168,14 +193,15 @@
                         </div>
 
                         <!-- Таб: Добавить участника -->
-                        <div id="content-add-member" class="tab-content">
-                            <h2 class="text-xl font-semibold text-gray-800 mb-4">Добавить участника в команду</h2>
+                        <div id="content-add-member" class="tab-content flex min-h-0 w-full flex-1 flex-col">
+                            <h2 class="mb-2 shrink-0 text-base font-semibold text-gray-800">Добавить участника в команду</h2>
                             
-                            <form action="{{ route('teams.members.add', $team) }}" method="POST" class="space-y-4 overflow-visible">
+                            <form action="{{ route('teams.members.add', $team) }}" method="POST" class="flex min-h-0 flex-1 flex-col overflow-visible">
+                                <div class="space-y-2.5">
                                 @csrf
                                 
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label class="mb-1 block text-sm font-medium text-gray-700">
                                         Выберите студента <span class="text-red-500">*</span>
                                     </label>
                                     <div class="relative overflow-visible">
@@ -194,7 +220,7 @@
                                         <button 
                                             type="button"
                                             id="student-select-button"
-                                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-left flex items-center justify-between"
+                                            class="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                                             onclick="toggleStudentDropdown()"
                                         >
                                             <span id="student-select-text" class="text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
@@ -242,7 +268,7 @@
                                 </div>
 
                                 <div class="relative overflow-visible">
-                                    <label for="type_user" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="type_user" class="mb-1 block text-sm font-medium text-gray-700">
                                         Роль в команде
                                     </label>
                                     <!-- Скрытое поле для формы -->
@@ -252,7 +278,7 @@
                                     <button 
                                         type="button"
                                         id="team-role-select-button"
-                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('type_user') border-red-500 @enderror bg-white text-left flex items-center justify-between"
+                                        class="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-left focus:border-blue-500 focus:ring-2 focus:ring-blue-500 @error('type_user') border-red-500 @enderror"
                                         onclick="toggleTeamRoleDropdown()"
                                     >
                                         <span id="team-role-select-text" class="text-gray-700">
@@ -297,11 +323,12 @@
                                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                     @enderror
                                 </div>
+                                </div>
 
-                                <div class="flex justify-end pt-4 border-t">
+                                <div class="mt-auto flex shrink-0 justify-end pt-2">
                                     <button 
                                         type="submit" 
-                                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                        class="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-blue-700"
                                     >
                                         Добавить участника
                                     </button>
@@ -310,7 +337,7 @@
                         </div>
 
                         <!-- Таб: Заявки на вступление -->
-                        <div id="content-join-requests" class="tab-content hidden">
+                        <div id="content-join-requests" class="tab-content hidden w-full">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                                 <h2 class="text-xl font-semibold text-gray-800">Заявки на вступление</h2>
                                 <a href="{{ route('teams.join-requests.index', $team) }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
@@ -389,13 +416,13 @@
                         </div>
 
                         <!-- Таб: Удалить участника -->
-                        <div id="content-remove-member" class="tab-content hidden">
-                            <h2 class="text-xl font-semibold text-gray-800 mb-4">Удалить участника из команды</h2>
+                        <div id="content-remove-member" class="tab-content hidden w-full">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-3">Удалить участника из команды</h2>
                             
                             @if($currentMembers->count() > 0)
                                 <!-- Поиск -->
-                                <div class="mb-4">
-                                    <label for="search-member" class="block text-sm font-medium text-gray-700 mb-2">
+                                <div class="mb-3">
+                                    <label for="search-member" class="mb-1 block text-sm font-medium text-gray-700">
                                         Поиск по фамилии, имени и отчеству
                                     </label>
                                     <div class="relative">
@@ -404,7 +431,7 @@
                                             id="search-member" 
                                             name="search-member"
                                             placeholder="Введите фамилию, имя или отчество..."
-                                            class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            class="w-full rounded-lg border border-gray-300 py-1.5 pl-10 pr-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                                             oninput="filterMembers(this.value)"
                                         >
                                         <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -497,12 +524,12 @@
                 </div>
             </div>
 
-            <!-- Статистика -->
-            <div>
-                <div class="bg-white rounded-lg shadow-md p-6">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Статистика</h2>
+            <!-- Статистика и ближайшая тренировка -->
+            <div id="team-overview-right" class="flex min-w-0 w-full flex-col gap-5 lg:flex-1">
+                <div class="rounded-lg bg-white p-5 shadow-md">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-3">Статистика</h2>
                     <div class="space-y-4">
-                        <div class="bg-blue-50 rounded-lg p-4">
+                        <div class="rounded-lg bg-blue-50 p-3">
                             <div class="flex items-center">
                                 <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
@@ -528,6 +555,11 @@
                         </div>
                     </div>
                 </div>
+
+                @include('teams.partials.nearest-training', [
+                    'nearestTraining' => $nearestTraining ?? null,
+                    'inSidebar' => true,
+                ])
             </div>
         </div>
 
@@ -763,7 +795,7 @@
     <script>
         function switchTab(tabName) {
             // Скрываем все табы
-            document.querySelectorAll('.tab-content').forEach(content => {
+            document.querySelectorAll('#team-tab-panels > .tab-content').forEach(content => {
                 content.classList.add('hidden');
             });
             

@@ -2,6 +2,14 @@
     /** @var \App\Models\Competition $competition */
     /** @var \App\Models\CompetitionResult|null $result */
     $cDates = $competition;
+    $sportUserId = null;
+    if ($result && ($result->result_type ?? '') === 'personal' && $result->user_id) {
+        $sportUserId = (int) $result->user_id;
+    }
+    $sportName = \App\Support\CompetitionResultPage::resolveSportNameForUser($competition, $sportUserId);
+    $participantName = ($result && $competition->isPersonalCompetition())
+        ? \App\Support\CompetitionResultPage::formatResultParticipantName($competition, $result)
+        : null;
 @endphp
 <article
     class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-md transition hover:shadow-lg"
@@ -10,7 +18,7 @@
     <div class="flex min-h-0 flex-1 flex-col p-5">
         <div class="mb-2 flex items-start justify-between gap-3">
             <h3 class="min-w-0 flex-1 text-lg font-semibold leading-snug text-gray-900">
-                <a href="{{ route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery ?? [])) }}" class="transition hover:text-blue-600">
+                <a href="{{ route('competitions.results.show', $competition) }}" class="transition hover:text-blue-600">
                     {{ $competition->name }}
                 </a>
             </h3>
@@ -35,7 +43,7 @@
             @if(filled($competition->description))
                 {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($competition->description ?? '')))), 150) }}
             @else
-                {{ $competition->sport?->name ?? 'Соревнование' }}
+                {{ $sportName !== '—' ? $sportName : 'Соревнование' }}
                 @if($competition->participants->count() > 0)
                     · участников: {{ $competition->participants->count() }}
                 @endif
@@ -43,9 +51,19 @@
         </p>
         <div class="mb-3 space-y-1 text-xs text-gray-600 sm:text-sm">
             <p>
-                <span class="font-medium text-gray-700">Вид спорта:</span>
-                {{ $competition->sport?->name ?? '—' }}
+                <span class="font-medium text-gray-700">Вид участия:</span>
+                {{ $competition->resultFormatLabel() }}
             </p>
+            <p>
+                <span class="font-medium text-gray-700">Вид спорта:</span>
+                {{ $sportName }}
+            </p>
+            @if($participantName)
+                <p>
+                    <span class="font-medium text-gray-700">Участник:</span>
+                    {{ $participantName }}
+                </p>
+            @endif
             <p>
                 <span class="font-medium text-gray-700">Категория:</span>
                 {{ $competition->category?->name_category ?? '—' }}
@@ -84,7 +102,7 @@
                 </a>
             @endif
             <a
-                href="{{ route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery ?? [])) }}"
+                href="{{ route('competitions.results.show', $competition) }}"
                 class="block rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-700"
             >
                 Подробнее

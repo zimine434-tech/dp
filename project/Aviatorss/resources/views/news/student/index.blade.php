@@ -4,10 +4,20 @@
 
 @section('content')
     @php
+        use App\Support\NewsListingSort;
+
         $listingFilters = $listingFilters ?? [];
+        $cardsSortStack = $cardsSortStack ?? NewsListingSort::defaultStack();
         $hasFilters = filled($listingFilters['q'] ?? null)
             || filled($listingFilters['date_from'] ?? null)
             || filled($listingFilters['date_to'] ?? null);
+        $newsBaseListingParams = array_filter([
+            'q' => filled($listingFilters['q'] ?? null) ? $listingFilters['q'] : null,
+            'date_from' => $listingFilters['date_from'] ?? null,
+            'date_to' => $listingFilters['date_to'] ?? null,
+            'per_page' => ($perPage ?? 25) !== 25 ? (string) ($perPage ?? 25) : null,
+        ], fn ($v) => $v !== null && $v !== '');
+        $resetListingUrl = NewsListingSort::listingUrl('news.index', [], $cardsSortStack, ['page' => 1]);
     @endphp
     <div class="space-y-6">
         <div>
@@ -18,6 +28,7 @@
         <form method="GET" action="{{ route('news.index') }}" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <input type="hidden" name="page" value="1">
             <input type="hidden" name="per_page" id="news_student_filter_per_page" value="{{ $perPage ?? 25 }}">
+            @include('news.partials.sort-hidden-inputs', compact('cardsSortStack'))
             <div class="flex flex-col gap-4 lg:flex-row lg:flex-nowrap lg:items-end lg:gap-4">
                 <div class="min-w-0 flex-1">
                     <label for="news_student_q" class="mb-1 block text-sm font-medium text-gray-700">Поиск</label>
@@ -58,12 +69,18 @@
                     <button type="submit" class="inline-flex h-10 min-w-[7.5rem] flex-1 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:flex-none">
                         Применить
                     </button>
-                    <a href="{{ route('news.index') }}" class="inline-flex h-10 min-w-[7.5rem] flex-1 items-center justify-center rounded-md border border-gray-300 bg-gray-200 px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:bg-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:flex-none">
+                    <a href="{{ $resetListingUrl }}" class="inline-flex h-10 min-w-[7.5rem] flex-1 items-center justify-center rounded-md border border-gray-300 bg-gray-200 px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:bg-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:flex-none">
                         Сбросить
                     </a>
                 </div>
             </div>
         </form>
+
+        @include('news.partials.news-sort-bar', [
+            'listingRoute' => 'news.index',
+            'baseListingParams' => $newsBaseListingParams,
+            'cardsSortStack' => $cardsSortStack,
+        ])
 
         @if(session('error'))
             <div class="rounded-lg border-l-4 border-red-400 bg-red-50 p-4">

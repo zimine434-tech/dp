@@ -14,7 +14,10 @@ use App\Models\Location;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\CompetitionResultPage;
 use App\Support\ParticipantListingDateFilter;
+use App\Support\StudentCompetitionListingSort;
+use App\Support\UploadedFileErrors;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -347,32 +350,76 @@ class CompetitionController extends Controller
 
     public function storePhotos(Request $request, Competition $competition)
     {
+        $uploaded = $request->file('images');
+        $files = is_array($uploaded) ? $uploaded : ($uploaded ? [$uploaded] : []);
+
+        if ($files === []) {
+            return redirect()
+                ->route('competitions.photos', $competition)
+                ->withErrors(['images' => 'Выберите хотя бы один файл.']);
+        }
+
+        $missingIndex = UploadedFileErrors::firstMissing($files);
+        if ($missingIndex !== null) {
+            return redirect()
+                ->route('competitions.photos', $competition)
+                ->withErrors(['images' => UploadedFileErrors::missingSlotMessage($missingIndex)]);
+        }
+
+        $invalid = UploadedFileErrors::firstInvalid($files);
+        if ($invalid !== null) {
+            return redirect()
+                ->route('competitions.photos', $competition)
+                ->withErrors([
+                    'images' => UploadedFileErrors::messageFor(
+                        $invalid['file'],
+                        $invalid['index'] + 1
+                    ),
+                ]);
+        }
+
         $validated = $request->validate([
             'images' => 'required|array|min:1',
-            // image — устаревшие HEIC с айфона часто не проходят; даём явные типы + AVIF
             'images.*' => 'file|max:10240|mimes:jpg,jpeg,png,gif,webp,bmp,avif',
         ], [
             'images.required' => 'Выберите хотя бы один файл.',
+            'images.*.uploaded' => 'Файл не загружен на сервер (превышен размер или лимит PHP). '.UploadedFileErrors::phpLimitsHint(),
             'images.*.file' => 'Каждый элемент должен быть файлом.',
-            'images.*.mimes' => 'Допустимы JPEG, PNG, GIF, WebP, BMP, AVIF. Фото в формате HEIC загрузите не с телефона или конвертируйте в JPEG.',
-            'images.*.max' => 'Превышен размер файла.',
+            'images.*.mimes' => 'Допустимы JPEG, PNG, GIF, WebP, BMP, AVIF. Фото HEIC с iPhone сохраните как JPEG или загрузите с компьютера.',
+            'images.*.max' => 'Размер одного файла не более 10 МБ.',
         ]);
 
         $dir = 'competition_photos/'.$competition->id;
+        $disk = Storage::disk('public');
+        if (! $disk->exists($dir)) {
+            $disk->makeDirectory($dir);
+        }
 
-        foreach ($validated['images'] as $file) {
-            $filename = Str::uuid().'.'.$file->getClientOriginalExtension();
+        $saved = 0;
+        foreach ($validated['images'] as $index => $file) {
+            $extension = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg');
+            $extension = $extension === 'jpeg' ? 'jpg' : $extension;
+            $filename = Str::uuid().'.'.$extension;
             $path = $file->storeAs($dir, $filename, 'public');
             if (! $path) {
                 return redirect()
                     ->route('competitions.photos', $competition)
-                    ->withErrors(['images' => 'Не удалось сохранить файл на сервере (проверьте права на каталог storage).']);
+                    ->withErrors([
+                        'images' => 'Файл №'.($index + 1).': не удалось сохранить на диск. Выполните php artisan storage:link и проверьте права на storage/app/public.',
+                    ]);
             }
             CompetitionImage::create([
                 'path' => $path,
                 'competition_id' => $competition->id,
                 'size_bytes' => $file->getSize(),
             ]);
+            $saved++;
+        }
+
+        if ($saved === 0) {
+            return redirect()
+                ->route('competitions.photos', $competition)
+                ->withErrors(['images' => 'Ни один файл не сохранён.']);
         }
 
         return redirect()->route('competitions.photos', $competition)
@@ -500,7 +547,7 @@ class CompetitionController extends Controller
             'teacher.user',
             'category',
             'forms',
-            'results.team',
+            'results.team.sport',
             'results.user',
             'competitionApplications' => fn ($q) => $q
                 ->where('status', 'pending')
@@ -682,6 +729,7 @@ class CompetitionController extends Controller
         $this->applyStudentCompetitionStatusFilter($competitions, $filter);
         $this->applyStudentCompetitionNameSearch($competitions, $listingFilters);
         $this->applyStudentCompetitionSportFilter($competitions, $listingFilters);
+        $this->applyStudentCompetitionCategoryFilter($competitions, $listingFilters);
 
         ParticipantListingDateFilter::applyToCompetitionQuery(
             $competitions,
@@ -689,21 +737,25 @@ class CompetitionController extends Controller
             $listingFilters['date_to'] ?? null,
         );
 
-        // От новых к старым: завершённые — по дате окончания; остальное — по дате начала
-        if ($filter === 'finished') {
-            $competitions->orderByDesc('end_date')->orderByDesc('start_date')->orderByDesc('id');
-        } else {
-            $competitions->orderByDesc('start_date')->orderByDesc('id');
-        }
+        $cardsSortStack = StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_CARDS);
+        $listSortStack = StudentCompetitionListingSort::normalizeListStack(
+            StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_LIST)
+        );
+        $activeSortStack = $view === 'list' ? $listSortStack : $cardsSortStack;
+        StudentCompetitionListingSort::applyToQuery($competitions, $activeSortStack);
 
         $competitions = $competitions->paginate($perPage)->withQueryString();
 
         $sportsForFilter = Sport::orderBy('name')->get();
+        $categoriesForFilter = CompetitionCategory::query()
+            ->whereHas('competitions')
+            ->orderBy('name_category')
+            ->get();
         $studentApplicationStates = $this->studentCompetitionApplicationStatesFor($competitions);
 
         return view(
             'competitions.student.index',
-            compact('competitions', 'filter', 'listingFilters', 'sportsForFilter', 'view', 'perPage', 'studentApplicationStates')
+            compact('competitions', 'filter', 'listingFilters', 'sportsForFilter', 'categoriesForFilter', 'view', 'perPage', 'studentApplicationStates', 'cardsSortStack', 'listSortStack')
         );
     }
 
@@ -738,6 +790,7 @@ class CompetitionController extends Controller
         $this->applyStudentCompetitionStatusFilter($competitions, $filter);
         $this->applyStudentCompetitionNameSearch($competitions, $listingFilters);
         $this->applyStudentCompetitionSportFilter($competitions, $listingFilters);
+        $this->applyStudentCompetitionCategoryFilter($competitions, $listingFilters);
 
         ParticipantListingDateFilter::applyToCompetitionQuery(
             $competitions,
@@ -745,19 +798,24 @@ class CompetitionController extends Controller
             $listingFilters['date_to'] ?? null,
         );
 
-        if ($filter === 'finished') {
-            $competitions->orderByDesc('end_date')->orderByDesc('start_date')->orderByDesc('id');
-        } else {
-            $competitions->orderByDesc('start_date')->orderByDesc('id');
-        }
+        $cardsSortStack = StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_CARDS);
+        $listSortStack = StudentCompetitionListingSort::normalizeListStack(
+            StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_LIST)
+        );
+        $activeSortStack = $view === 'list' ? $listSortStack : $cardsSortStack;
+        StudentCompetitionListingSort::applyToQuery($competitions, $activeSortStack);
 
         $competitions = $competitions->paginate($perPage)->withQueryString();
         $sportsForFilter = Sport::orderBy('name')->get();
+        $categoriesForFilter = CompetitionCategory::query()
+            ->whereHas('competitions')
+            ->orderBy('name_category')
+            ->get();
         $studentApplicationStates = $this->studentCompetitionApplicationStatesFor($competitions);
 
         return view(
             'competitions.student.my',
-            compact('competitions', 'filter', 'listingFilters', 'sportsForFilter', 'view', 'perPage', 'studentApplicationStates')
+            compact('competitions', 'filter', 'listingFilters', 'sportsForFilter', 'categoriesForFilter', 'view', 'perPage', 'studentApplicationStates', 'cardsSortStack', 'listSortStack')
         );
     }
 
@@ -771,12 +829,13 @@ class CompetitionController extends Controller
     }
 
     /**
-     * @return array{sport_id?: int|string|null, date_from?: string|null, date_to?: string|null, q: string}
+     * @return array{sport_id?: int|string|null, competition_category_id?: int|string|null, date_from?: string|null, date_to?: string|null, q: string}
      */
     private function studentCompetitionListingFilters(Request $request): array
     {
         $listingFilters = $request->validate([
             'sport_id' => ['nullable', 'integer', Rule::exists('sports', 'id')],
+            'competition_category_id' => ['nullable', 'integer', Rule::exists('competition_categories', 'id')],
             'date_from' => ['nullable', 'date_format:Y-m-d'],
             'date_to' => ['nullable', 'date_format:Y-m-d'],
             'q' => ['nullable', 'string', 'max:200'],
@@ -828,6 +887,15 @@ class CompetitionController extends Controller
         }
 
         $query->whereListingSport((int) $listingFilters['sport_id']);
+    }
+
+    private function applyStudentCompetitionCategoryFilter($query, array $listingFilters): void
+    {
+        if (empty($listingFilters['competition_category_id'])) {
+            return;
+        }
+
+        $query->where('competition_category_id', (int) $listingFilters['competition_category_id']);
     }
 
     /**
@@ -3522,7 +3590,27 @@ class CompetitionController extends Controller
     }
 
     /**
-     * Display results page for competitions.
+     * Страница результата соревнования (основная информация и участники).
+     */
+    public function showResult(Competition $competition)
+    {
+        $user = auth()->user();
+
+        if ($user->role === 'teacher') {
+            if (! CompetitionResultPage::guestCanView($competition)) {
+                abort(404);
+            }
+        } elseif (! CompetitionResultPage::guestCanView($competition)) {
+            abort(404);
+        }
+
+        $competition = CompetitionResultPage::loadCompetition($competition);
+
+        return view('competitions.result-show', compact('competition'));
+    }
+
+    /**
+     * Display competition results listing page.
      */
     public function results(Request $request)
     {
@@ -3535,7 +3623,7 @@ class CompetitionController extends Controller
         $listingFilters = $this->parseCompetitionListingFilters($request);
         extract($listingFilters);
         $place = $this->parseResultsPlaceFilter($request);
-        $hasSearchFilters = $q !== '' || $dateFrom || $dateTo || $sportId || $place !== '';
+        $hasSearchFilters = $q !== '' || $dateFrom || $dateTo || $sportId || $categoryId !== null || $place !== '';
 
         $view = $request->query('view', $isTeacher ? 'list' : 'cards');
         if (! in_array($view, ['list', 'cards'], true)) {
@@ -3546,6 +3634,12 @@ class CompetitionController extends Controller
         if (! in_array($perPage, [10, 25, 50, 100], true)) {
             $perPage = 25;
         }
+
+        $cardsSortStack = StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_CARDS);
+        $listSortStack = StudentCompetitionListingSort::normalizeListStack(
+            StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_LIST)
+        );
+        $activeSortStack = $view === 'list' ? $listSortStack : $cardsSortStack;
 
         // Автоархивация результатов завершенных соревнований старше N месяцев (для отображения у преподавателя).
         if ($hasArchiveColumn) {
@@ -3558,71 +3652,34 @@ class CompetitionController extends Controller
                 ->update(['is_archive' => true]);
         }
 
-        // Загрузка результатов: преподаватель — все (с учётом архива); студент — только строки с местом.
-        $finishedWith = ['sport', 'team', 'location', 'category', 'participants.user'];
+        // Загрузка результатов: преподаватель и студент видят все завершённые соревнования с местами.
+        $finishedWith = ['sport', 'team', 'location', 'category', 'participants.user', 'participants.team.sport'];
         if ($hasArchiveColumn) {
-            $finishedWith['results'] = $isTeacher
-                ? function ($q) {
-                    $q->where('is_archive', false)->with('team');
-                }
-                : function ($q) use ($userId) {
-                    $q->where('is_archive', false)
-                        ->whereNotNull('place')
-                        ->where('place', '!=', '')
-                        ->where(function ($qq) use ($userId) {
-                            // For students:
-                            // - keep team results (one per competition)
-                            // - keep only own personal result row
-                            $qq->where('result_type', 'team')
-                                ->orWhere(function ($p) use ($userId) {
-                                    $p->where('result_type', 'personal')
-                                        ->where('user_id', $userId);
-                                });
-                        })
-                        ->with('team');
-                };
-        } elseif ($isTeacher) {
-            $finishedWith[] = 'results.team';
+            $finishedWith['results'] = function ($q) {
+                $q->where('is_archive', false)
+                    ->whereNotNull('place')
+                    ->where('place', '!=', '')
+                    ->with(['team.sport', 'user']);
+            };
         } else {
-            $finishedWith['results'] = function ($q) use ($userId) {
+            $finishedWith['results'] = function ($q) {
                 $q->whereNotNull('place')
                     ->where('place', '!=', '')
-                    ->where(function ($qq) use ($userId) {
-                        $qq->where('result_type', 'team')
-                            ->orWhere(function ($p) use ($userId) {
-                                $p->where('result_type', 'personal')
-                                    ->where('user_id', $userId);
-                            });
-                    })
-                    ->with('team');
+                    ->with(['team.sport', 'user']);
             };
         }
 
-        if ($isTeacher) {
-            $allFinishedCompetitions = Competition::with($finishedWith)
-                ->where('status', 'finished')
-                ->where(function ($q) use ($archiveThreshold) {
-                    // Старые завершенные соревнования остаются в результатах, если у них нет мест.
-                    $q->whereDate('end_date', '>', $archiveThreshold->toDateString())
-                        ->orWhereDoesntHave('results', function ($r) {
-                            $r->whereNotNull('place')
-                                ->where('place', '!=', '');
-                        });
-                })
-                ->latest('end_date')
-                ->get();
-        } else {
-            $allFinishedCompetitions = Competition::with($finishedWith)
-                ->where('status', 'finished')
-                ->whereHas('results', function ($r) use ($hasArchiveColumn) {
-                    $r->whereNotNull('place')->where('place', '!=', '');
-                    if ($hasArchiveColumn) {
-                        $r->where('is_archive', false);
-                    }
-                })
-                ->latest('end_date')
-                ->get();
-        }
+        $allFinishedCompetitions = Competition::with($finishedWith)
+            ->where('status', 'finished')
+            ->where(function ($q) use ($archiveThreshold) {
+                $q->whereDate('end_date', '>', $archiveThreshold->toDateString())
+                    ->orWhereDoesntHave('results', function ($r) {
+                        $r->whereNotNull('place')
+                            ->where('place', '!=', '');
+                    });
+            })
+            ->latest('end_date')
+            ->get();
 
         // Получаем завершенные соревнования только с результатами для отображения
         $allFinishedCompetitionsForDisplay = $allFinishedCompetitions->filter(function ($comp) {
@@ -3636,32 +3693,9 @@ class CompetitionController extends Controller
             })
             : collect();
 
-        // Список видов спорта для фильтра на странице результатов
-        if ($isTeacher) {
-            $sportsForResultsFilter = $allFinishedCompetitions
-                ->map(fn ($comp) => $comp->sport)
-                ->filter()
-                ->unique('id')
-                ->sortBy('name')
-                ->values();
-        } else {
-            $sportIds = Competition::query()
-                ->where('status', 'finished')
-                ->whereHas('results', function ($r) use ($hasArchiveColumn) {
-                    $r->whereNotNull('place')->where('place', '!=', '');
-                    if ($hasArchiveColumn) {
-                        $r->where('is_archive', false);
-                    }
-                })
-                ->distinct()
-                ->pluck('sport_id')
-                ->filter();
-
-            $sportsForResultsFilter = Sport::query()
-                ->whereIn('id', $sportIds)
-                ->orderBy('name')
-                ->get();
-        }
+        $sportsForResultsFilter = CompetitionResultPage::collectSportsForCompetitionsFilter(
+            $allFinishedCompetitions
+        );
 
         // Получаем завершенные соревнования только для dropdown (без результатов и с командой)
         $competitions = $allFinishedCompetitions->filter(function($comp) {
@@ -3673,13 +3707,13 @@ class CompetitionController extends Controller
         if ($hasArchiveColumn) {
             $ongoingWith['results'] = $isTeacher
                 ? function ($q) {
-                    $q->where('is_archive', false)->with('team');
+                    $q->where('is_archive', false)->with(['team.sport', 'user']);
                 }
                 : function ($q) {
-                    $q->with('team');
+                    $q->with(['team.sport', 'user']);
                 };
         } else {
-            $ongoingWith[] = 'results.team';
+            $ongoingWith['results'] = fn ($q) => $q->with(['team.sport', 'user']);
         }
 
         $allOngoingCompetitions = Competition::with($ongoingWith)
@@ -3692,9 +3726,18 @@ class CompetitionController extends Controller
             return $comp->results->isEmpty() && $comp->team;
         });
 
+        $categoriesForResultsFilter = CompetitionResultPage::collectCategoriesForCompetitionsFilter(
+            $allFinishedCompetitions->concat($allOngoingCompetitions)
+        );
+
         $allowedSportIds = $sportsForResultsFilter->pluck('id')->map(fn ($id) => (int) $id)->all();
         if ($sportId !== null && ! in_array($sportId, $allowedSportIds, true)) {
             $sportId = null;
+        }
+
+        $allowedCategoryIds = $categoriesForResultsFilter->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($categoryId !== null && ! in_array($categoryId, $allowedCategoryIds, true)) {
+            $categoryId = null;
         }
 
         $placesForResultsFilter = $this->collectPlacesForResultsFilter(
@@ -3712,7 +3755,9 @@ class CompetitionController extends Controller
             $dateFrom,
             $dateTo,
             $sportId,
-            $place
+            $place,
+            null,
+            $categoryId
         );
 
         $allFinishedCompetitionsForDisplay = $this->filterCompetitionsCollection(
@@ -3721,7 +3766,9 @@ class CompetitionController extends Controller
             $dateFrom,
             $dateTo,
             $sportId,
-            $place
+            $place,
+            null,
+            $categoryId
         );
 
         $allFinishedCompetitionsWithoutResultsForDisplay = $this->filterCompetitionsCollection(
@@ -3730,7 +3777,9 @@ class CompetitionController extends Controller
             $dateFrom,
             $dateTo,
             $sportId,
-            $place
+            $place,
+            null,
+            $categoryId
         );
 
         if ($place !== '' && $place !== '__none__') {
@@ -3742,15 +3791,32 @@ class CompetitionController extends Controller
             )->values();
         }
 
-        $finishedMerged = $allFinishedCompetitionsForDisplay
-            ->concat($allFinishedCompetitionsWithoutResultsForDisplay)
-            ->unique('id')
-            ->sortByDesc('end_date')
+        $sortedWithResults = StudentCompetitionListingSort::sortCompetitionCollection(
+            $allFinishedCompetitionsForDisplay->unique('id')->values(),
+            $activeSortStack
+        );
+        $sortedWithoutResults = StudentCompetitionListingSort::sortCompetitionCollection(
+            $allFinishedCompetitionsWithoutResultsForDisplay->unique('id')->values(),
+            $activeSortStack
+        );
+
+        $expandedResultRows = CompetitionResultPage::expandCompetitionsToResultListingRows($sortedWithResults);
+
+        $finishedListingItems = $expandedResultRows
+            ->map(fn (array $row) => [
+                'kind' => 'result',
+                'competition' => $row['competition'],
+                'result' => $row['result'],
+            ])
+            ->concat($sortedWithoutResults->map(fn (Competition $c) => [
+                'kind' => 'without',
+                'competition' => $c,
+            ]))
             ->values();
 
         $currentPage = max(1, (int) $request->query('page', 1));
-        $total = $finishedMerged->count();
-        $finishedPageItems = $finishedMerged->slice(($currentPage - 1) * $perPage, $perPage)->values();
+        $total = $finishedListingItems->count();
+        $finishedPageItems = $finishedListingItems->slice(($currentPage - 1) * $perPage, $perPage)->values();
 
         $finishedPaginator = new LengthAwarePaginator(
             $finishedPageItems,
@@ -3763,16 +3829,26 @@ class CompetitionController extends Controller
             ]
         );
 
-        // Для отображения на странице используем только элементы текущей страницы.
-        $allFinishedCompetitionsForDisplay = $finishedPageItems->filter(fn (Competition $c) => $c->results->isNotEmpty())->values();
-        $allFinishedCompetitionsWithoutResultsForDisplay = $finishedPageItems->filter(fn (Competition $c) => $c->results->isEmpty())->values();
+        $finishedResultsListingItems = $finishedPageItems
+            ->filter(fn (array $item) => ($item['kind'] ?? '') === 'result')
+            ->values();
+
+        $allFinishedCompetitionsForDisplay = $finishedResultsListingItems
+            ->pluck('competition')
+            ->unique('id')
+            ->values();
+
+        $allFinishedCompetitionsWithoutResultsForDisplay = $finishedPageItems
+            ->filter(fn (array $item) => ($item['kind'] ?? '') === 'without')
+            ->pluck('competition')
+            ->values();
 
         $ongoingPaginator = null;
         if ($isTeacher) {
-            $ongoingMerged = ($allOngoingCompetitionsForDisplay ?? collect())
-                ->unique('id')
-                ->sortByDesc('start_date')
-                ->values();
+            $ongoingMerged = StudentCompetitionListingSort::sortCompetitionCollection(
+                ($allOngoingCompetitionsForDisplay ?? collect())->unique('id')->values(),
+                $activeSortStack
+            );
 
             $ongoingPage = max(1, (int) $request->query('ongoing_page', 1));
             $ongoingTotal = $ongoingMerged->count();
@@ -3801,6 +3877,7 @@ class CompetitionController extends Controller
             'allOngoingCompetitionsForDisplay',
             'allFinishedCompetitionsForDisplay',
             'allFinishedCompetitionsWithoutResultsForDisplay',
+            'finishedResultsListingItems',
             'finishedPaginator',
             'ongoingPaginator',
             'sportsForResultsFilter',
@@ -3814,6 +3891,10 @@ class CompetitionController extends Controller
             'hasSearchFilters',
             'view',
             'perPage',
+            'cardsSortStack',
+            'listSortStack',
+            'categoriesForResultsFilter',
+            'categoryId',
         ));
     }
 
@@ -3883,7 +3964,7 @@ class CompetitionController extends Controller
 
 
     /**
-     * @return array{q: string, dateFrom: ?string, dateTo: ?string, sportId: ?int}
+     * @return array{q: string, dateFrom: ?string, dateTo: ?string, sportId: ?int, categoryId: ?int}
      */
     private function parseCompetitionListingFilters(Request $request): array
     {
@@ -3912,7 +3993,12 @@ class CompetitionController extends Controller
             $sportId = (int) $request->query('sport_id');
         }
 
-        return compact('q', 'dateFrom', 'dateTo', 'sportId');
+        $categoryId = null;
+        if ($request->filled('competition_category_id') && is_numeric($request->query('competition_category_id'))) {
+            $categoryId = (int) $request->query('competition_category_id');
+        }
+
+        return compact('q', 'dateFrom', 'dateTo', 'sportId', 'categoryId');
     }
 
     private function parseResultsPlaceFilter(Request $request): string
@@ -3959,11 +4045,40 @@ class CompetitionController extends Controller
         ?string $dateFrom,
         ?string $dateTo,
         ?int $sportId,
-        string $place = ''
+        string $place = '',
+        ?int $studentUserId = null,
+        ?int $categoryId = null
     ) {
-        return $competitions->filter(function (Competition $comp) use ($q, $dateFrom, $dateTo, $sportId, $place) {
-            if ($sportId !== null && (int) $comp->sport_id !== $sportId) {
-                return false;
+        return $competitions->filter(function (Competition $comp) use ($q, $dateFrom, $dateTo, $sportId, $place, $studentUserId, $categoryId) {
+            if ($sportId !== null) {
+                if ($comp->isPersonalCompetition()) {
+                    $matchingBySport = $comp->results->filter(function ($result) use ($comp, $sportId) {
+                        $resultSportId = CompetitionResultPage::resolveSportIdForUser(
+                            $comp,
+                            $result->user_id ? (int) $result->user_id : null
+                        );
+
+                        return (int) $resultSportId === $sportId;
+                    });
+
+                    if ($matchingBySport->isEmpty()) {
+                        return false;
+                    }
+
+                    $comp->setRelation('results', $matchingBySport->values());
+                } else {
+                    $compSportId = CompetitionResultPage::resolveSportIdForUser($comp, $studentUserId);
+
+                    if ((int) $compSportId !== $sportId) {
+                        return false;
+                    }
+                }
+            }
+
+            if ($categoryId !== null) {
+                if ((int) $comp->competition_category_id !== $categoryId) {
+                    return false;
+                }
             }
 
             if ($q !== '') {

@@ -4,6 +4,10 @@
 
 @section('content')
     @php
+        use App\Support\TrainingSessionListingSort;
+
+        $cardsSortStack = $cardsSortStack ?? TrainingSessionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? TrainingSessionListingSort::defaultStack();
         $trainingIndexFilterParams = array_filter([
             'q' => ($q ?? '') !== '' ? $q : null,
             'date_from' => $dateFrom ?? null,
@@ -12,7 +16,17 @@
             'view' => ($view ?? 'list') !== 'list' ? $view : null,
             'per_page' => (int) ($perPage ?? 50) !== 50 ? (string) (int) ($perPage ?? 50) : null,
         ], fn ($v) => $v !== null && $v !== '');
-        $trainingStatusUrl = fn (string $f) => route('training-sessions.index', $f === 'all' ? $trainingIndexFilterParams : array_merge($trainingIndexFilterParams, ['filter' => $f]));
+        $trainingBaseListingParams = array_merge(
+            $trainingIndexFilterParams,
+            ($filter ?? 'all') !== 'all' ? ['filter' => $filter] : []
+        );
+        $trainingStatusUrl = fn (string $f) => TrainingSessionListingSort::listingUrl(
+            'training-sessions.index',
+            array_merge($trainingIndexFilterParams, $f === 'all' ? [] : ['filter' => $f]),
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
         $tsView = $view ?? 'list';
         $trainingFiltersHidden = ['view' => $tsView, 'per_page' => (int) ($perPage ?? 50)];
         if (($filter ?? 'all') !== 'all') {
@@ -112,6 +126,9 @@
                             </div>
                         </div>
                     </form>
+                    <div id="training-sessions-sort-hidden-inputs" class="hidden" aria-hidden="true">
+                        @include('training-sessions.partials.sort-hidden-inputs', compact('cardsSortStack', 'listSortStack'))
+                    </div>
                 </div>
             </div>
             <div class="flex shrink-0 flex-col">
@@ -171,6 +188,10 @@
             'hasSearchFilters' => $hasSearchFilters ?? false,
             'view' => $tsView,
             'perPage' => (int) ($perPage ?? 50),
+            'listingRoute' => 'training-sessions.index',
+            'baseListingParams' => $trainingBaseListingParams,
+            'cardsSortStack' => $cardsSortStack,
+            'listSortStack' => $listSortStack,
         ])
     </div>
 @endsection
@@ -180,6 +201,7 @@
 (function () {
     const VIEW_STORAGE_KEY = 'training_sessions_view';
     const PER_PAGE_STORAGE_KEY = 'training_sessions_teacher_per_page';
+    const sortHiddenWrapId = 'training-sessions-sort-hidden-inputs';
     const form = document.getElementById('training-sessions-filters-form');
 
     function getStoredViewMode() {
@@ -214,6 +236,9 @@
             el.classList.toggle('hidden', isCards);
         });
         document.querySelectorAll('[data-training-sessions-cards-wrap]').forEach(function (el) {
+            el.classList.toggle('hidden', !isCards);
+        });
+        document.querySelectorAll('[data-training-sessions-cards-sort-wrap]').forEach(function (el) {
             el.classList.toggle('hidden', !isCards);
         });
         const btnList = document.getElementById('training-sessions-view-list');
@@ -287,6 +312,45 @@
         });
     }
 
+    function getSortWrap() {
+        return document.getElementById(sortHiddenWrapId);
+    }
+
+    function removeSortParams(params) {
+        ['cards_sort', 'cards_order', 'list_sort', 'list_order'].forEach(function (key) {
+            while (params.has(key)) {
+                params.delete(key);
+            }
+        });
+    }
+
+    function appendSortParams(params) {
+        const wrap = getSortWrap();
+        if (!wrap) {
+            return;
+        }
+        removeSortParams(params);
+        wrap.querySelectorAll('input[name]').forEach(function (input) {
+            if (!input.name) {
+                return;
+            }
+            if (input.name.endsWith('[]')) {
+                params.append(input.name, input.value);
+            } else {
+                params.set(input.name, input.value);
+            }
+        });
+    }
+
+    function replaceSortHiddenInputs(doc) {
+        const nextWrap = doc.getElementById(sortHiddenWrapId);
+        const currentWrap = getSortWrap();
+        if (!nextWrap || !currentWrap) {
+            return;
+        }
+        currentWrap.innerHTML = nextWrap.innerHTML;
+    }
+
     function normalizeTrainingListingSearchParams(params) {
         params.forEach(function (value, key) {
             if (value === '') params.delete(key);
@@ -303,6 +367,7 @@
         const url = new URL(form.action, window.location.origin);
         const params = new URLSearchParams(new FormData(form));
         normalizeTrainingListingSearchParams(params);
+        appendSortParams(params);
         url.search = params.toString();
         return url;
     }
@@ -377,6 +442,7 @@
             if (!nextResults) return;
 
             resultsEl.replaceWith(document.importNode(nextResults, true));
+            replaceSortHiddenInputs(doc);
             applyQueryToForm(url.searchParams);
             syncTrainingStatusChips(filterFromTrainingUrlSearchParams(url.searchParams));
             document.dispatchEvent(new CustomEvent('sport-combobox:sync'));

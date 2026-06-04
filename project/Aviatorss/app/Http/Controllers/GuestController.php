@@ -13,6 +13,7 @@ use App\Models\TeamJoinRequest;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Support\CompetitionResultPage;
 use App\Support\HomeGallery;
 
 class GuestController extends Controller
@@ -266,7 +267,7 @@ class GuestController extends Controller
             abort(404);
         }
         
-        $competition->load(['sport', 'team', 'location', 'participants.user', 'images']);
+        $competition->load(['sport', 'team', 'location', 'participants.user', 'participants.team.sport', 'images']);
         
         // Убираем "битые" записи без связанного пользователя и сортируем оставшихся
         $competition->participants = $competition->participants
@@ -470,5 +471,19 @@ class GuestController extends Controller
             'selectedSportQuery',
             'searchQ',
         ));
+    }
+
+    /**
+     * Страница результата соревнования для гостей.
+     */
+    public function showResult(Competition $competition)
+    {
+        if (! CompetitionResultPage::guestCanView($competition)) {
+            abort(404);
+        }
+
+        $competition = CompetitionResultPage::loadCompetition($competition);
+
+        return view('guest.result-show', compact('competition'));
     }
 }

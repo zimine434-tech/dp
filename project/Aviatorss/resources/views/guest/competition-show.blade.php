@@ -3,6 +3,9 @@
 @section('title', $competition->name)
 
 @section('content')
+    @php
+        $isPersonalCompetition = $competition->isPersonalCompetition();
+    @endphp
     <div class="max-w-4xl mx-auto space-y-6">
         <!-- Заголовок -->
         <div class="bg-white rounded-lg shadow-md p-6">
@@ -28,10 +31,17 @@
                     <label class="text-sm font-medium text-gray-500 block mb-1">Название</label>
                     <p class="text-lg text-gray-900">{{ $competition->name }}</p>
                 </div>
-                
+
+                @if(! $isPersonalCompetition)
+                    <div>
+                        <label class="text-sm font-medium text-gray-500 block mb-1">Вид спорта</label>
+                        <p class="text-lg text-gray-900">{{ $competition->sport?->name ?? '—' }}</p>
+                    </div>
+                @endif
+
                 <div>
-                    <label class="text-sm font-medium text-gray-500 block mb-1">Вид спорта</label>
-                    <p class="text-lg text-gray-900">{{ $competition->sport?->name ?? '—' }}</p>
+                    <label class="text-sm font-medium text-gray-500 block mb-1">Вид участия</label>
+                    <p class="text-lg text-gray-900">{{ $competition->resultFormatLabel() }}</p>
                 </div>
 
                 <div>
@@ -105,8 +115,10 @@
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Фамилия</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Имя</th>
+                                @if($isPersonalCompetition)
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид спорта</th>
+                                @endif
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Роль</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Другое</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -122,6 +134,13 @@
                                             {{ $participant->user->firstname ?? '—' }}
                                         </div>
                                     </td>
+                                    @if($isPersonalCompetition)
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-900">
+                                                {{ $participant->team?->sport?->name ?? '—' }}
+                                            </div>
+                                        </td>
+                                    @endif
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         @php
                                             $role = $participant->role ?? 'student';
@@ -134,18 +153,6 @@
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                             {{ $roleName }}
                                         </span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        @if($participant->user)
-                                            <a
-                                                href="{{ route('guest.users.show', $participant->user) }}"
-                                                class="text-sm font-medium text-blue-600 hover:text-blue-800"
-                                            >
-                                                Смотреть профиль
-                                            </a>
-                                        @else
-                                            <span class="text-sm text-gray-400">—</span>
-                                        @endif
                                     </td>
                                 </tr>
                             @endforeach

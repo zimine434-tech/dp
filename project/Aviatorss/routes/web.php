@@ -44,6 +44,7 @@ Route::get('/guest/teams/{team}', [GuestController::class, 'showTeam'])->name('g
 Route::get('/guest/competitions', [GuestController::class, 'competitions'])->name('guest.competitions');
 Route::get('/guest/competitions/{competition}', [GuestController::class, 'showCompetition'])->name('guest.competitions.show');
 Route::get('/guest/results', [GuestController::class, 'results'])->name('guest.results');
+Route::get('/guest/results/{competition}', [GuestController::class, 'showResult'])->name('guest.results.show');
 Route::get('/guest/training-sessions', [GuestController::class, 'trainingSessions'])->name('guest.training-sessions');
 Route::get('/guest/training-sessions/{trainingSession}', [GuestController::class, 'showTrainingSession'])->name('guest.training-sessions.show');
 Route::get('/guest/users/{user}', [GuestController::class, 'showUserProfile'])->name('guest.users.show');
@@ -344,6 +345,7 @@ Route::middleware(['auth', EnsureAllowedRoles::class])->group(function () {
 
     // Страница результатов соревнований
     Route::get('/competitions/results', [CompetitionController::class, 'results'])->name('competitions.results')->middleware(['auth', EnsureAllowedRoles::class]);
+    Route::get('/competitions/results/{competition}', [CompetitionController::class, 'showResult'])->name('competitions.results.show')->middleware(['auth', EnsureAllowedRoles::class]);
 
     // Маршруты для тренировочных сессий
     Route::get('/training-sessions', function (Request $request) {

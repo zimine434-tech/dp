@@ -18,7 +18,7 @@
             }
         }
     @endphp
-    <div class="max-w-4xl mx-auto space-y-6">
+    <div class="mx-auto w-full max-w-4xl space-y-6">
         <!-- Заголовок -->
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

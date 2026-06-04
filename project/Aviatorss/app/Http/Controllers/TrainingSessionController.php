@@ -7,6 +7,7 @@ use App\Models\Sport;
 use App\Models\Team;
 use App\Support\ParticipantListingDateFilter;
 use App\Support\TrainingRegistrationOverlap;
+use App\Support\TrainingSessionListingSort;
 use App\Models\TrainingSession;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -85,9 +86,12 @@ class TrainingSessionController extends Controller
         }
         ParticipantListingDateFilter::applyToTrainingSessionQuery($listQuery, $dateFrom, $dateTo);
 
+        $sortStacks = $this->trainingListingSortStacks($request, $view);
+        TrainingSessionListingSort::applyToQuery($listQuery, $sortStacks['activeSortStack']);
+        $cardsSortStack = $sortStacks['cardsSortStack'];
+        $listSortStack = $sortStacks['listSortStack'];
+
         $sessions = $listQuery
-            ->orderByDesc('start_time')
-            ->orderByDesc('id')
             ->paginate($perPage)
             ->withQueryString();
 
@@ -104,7 +108,23 @@ class TrainingSessionController extends Controller
             'view',
             'hasSearchFilters',
             'perPage',
+            'cardsSortStack',
+            'listSortStack',
         ));
+    }
+
+    /**
+     * @return array{cardsSortStack: array, listSortStack: array, activeSortStack: array}
+     */
+    protected function trainingListingSortStacks(Request $request, string $view): array
+    {
+        $cardsSortStack = TrainingSessionListingSort::parseStack($request, TrainingSessionListingSort::PREFIX_CARDS);
+        $listSortStack = TrainingSessionListingSort::normalizeListStack(
+            TrainingSessionListingSort::parseStack($request, TrainingSessionListingSort::PREFIX_LIST)
+        );
+        $activeSortStack = $view === 'list' ? $listSortStack : $cardsSortStack;
+
+        return compact('cardsSortStack', 'listSortStack', 'activeSortStack');
     }
 
     /**
@@ -381,9 +401,13 @@ class TrainingSessionController extends Controller
         $this->applyStudentTrainingStatusFilter($baseQuery, $filter);
         $this->applyStudentTrainingListingFilters($baseQuery, $listingFilters);
 
-        $allTrainingSessions = $baseQuery->clone()
-            ->latest('start_time')
-            ->orderByDesc('id')
+        $sortStacks = $this->trainingListingSortStacks($request, $view);
+        $listQuery = $baseQuery->clone();
+        TrainingSessionListingSort::applyToQuery($listQuery, $sortStacks['activeSortStack']);
+        $cardsSortStack = $sortStacks['cardsSortStack'];
+        $listSortStack = $sortStacks['listSortStack'];
+
+        $allTrainingSessions = $listQuery
             ->paginate($perPage)
             ->withQueryString();
 
@@ -396,7 +420,17 @@ class TrainingSessionController extends Controller
 
         return view(
             'training-sessions.student.index',
-            compact('allTrainingSessions', 'filter', 'listingFilters', 'sportsForFilter', 'view', 'hasSearchFilters', 'perPage')
+            compact(
+                'allTrainingSessions',
+                'filter',
+                'listingFilters',
+                'sportsForFilter',
+                'view',
+                'hasSearchFilters',
+                'perPage',
+                'cardsSortStack',
+                'listSortStack',
+            )
         );
     }
 
@@ -447,9 +481,13 @@ class TrainingSessionController extends Controller
         $this->applyStudentTrainingStatusFilter($baseQuery, $filter);
         $this->applyStudentTrainingListingFilters($baseQuery, $listingFilters);
 
-        $allTrainingSessions = $baseQuery->clone()
-            ->latest('start_time')
-            ->orderByDesc('id')
+        $sortStacks = $this->trainingListingSortStacks($request, $view);
+        $listQuery = $baseQuery->clone();
+        TrainingSessionListingSort::applyToQuery($listQuery, $sortStacks['activeSortStack']);
+        $cardsSortStack = $sortStacks['cardsSortStack'];
+        $listSortStack = $sortStacks['listSortStack'];
+
+        $allTrainingSessions = $listQuery
             ->paginate($perPage)
             ->withQueryString();
 
@@ -462,7 +500,17 @@ class TrainingSessionController extends Controller
 
         return view(
             'training-sessions.student.my',
-            compact('allTrainingSessions', 'filter', 'listingFilters', 'sportsForFilter', 'view', 'hasSearchFilters', 'perPage')
+            compact(
+                'allTrainingSessions',
+                'filter',
+                'listingFilters',
+                'sportsForFilter',
+                'view',
+                'hasSearchFilters',
+                'perPage',
+                'cardsSortStack',
+                'listSortStack',
+            )
         );
     }
 

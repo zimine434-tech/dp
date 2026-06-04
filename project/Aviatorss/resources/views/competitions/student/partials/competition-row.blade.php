@@ -41,7 +41,10 @@
         </div>
     </td>
     <td class="px-6 py-4 whitespace-nowrap">
-        @include('competitions.student.partials.competition-status-badges', ['competition' => $competition])
+        @include('competitions.student.partials.competition-participation-badge', ['competition' => $competition])
+    </td>
+    <td class="px-6 py-4 whitespace-nowrap">
+        @include('competitions.student.partials.competition-event-status-badge', ['competition' => $competition])
     </td>
     <td class="px-6 py-4 text-right text-sm font-medium">
         <div class="flex flex-col items-end gap-1">

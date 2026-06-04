@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sport;
+use App\Support\SportListingSort;
 use Illuminate\Http\Request;
 
 class SportController extends Controller
@@ -12,31 +13,7 @@ class SportController extends Controller
      */
     public function index(Request $request)
     {
-        $validated = $request->validate([
-            'q' => 'nullable|string|max:255',
-            'view' => 'nullable|in:list,cards',
-            'per_page' => 'nullable|integer',
-        ]);
-
-        $q = trim((string) ($validated['q'] ?? ''));
-        $view = (($validated['view'] ?? 'list') === 'cards') ? 'cards' : 'list';
-        $perPage = (int) ($validated['per_page'] ?? 10);
-        if (! in_array($perPage, [10, 25, 50, 100], true)) {
-            $perPage = 10;
-        }
-
-        $query = Sport::with(['creator'])->latest();
-
-        if ($q !== '') {
-            $like = '%' . addcslashes($q, '%_\\') . '%';
-            $query->where('name', 'like', $like);
-        }
-
-        $sports = $query->paginate($perPage)->withQueryString();
-
-        $onlyMine = false;
-
-        return view('sports.index', compact('sports', 'q', 'view', 'perPage', 'onlyMine'));
+        return view('sports.index', $this->resolveSportsListing($request, false));
     }
 
     /**
@@ -49,6 +26,14 @@ class SportController extends Controller
             abort(403);
         }
 
+        return view('sports.index', $this->resolveSportsListing($request, true));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function resolveSportsListing(Request $request, bool $onlyMine): array
+    {
         $validated = $request->validate([
             'q' => 'nullable|string|max:255',
             'view' => 'nullable|in:list,cards',
@@ -62,19 +47,36 @@ class SportController extends Controller
             $perPage = 10;
         }
 
-        $query = Sport::with(['creator'])
-            ->where('created_by', $user->id)
-            ->latest();
+        $cardsSortStack = SportListingSort::parseStack($request, SportListingSort::PREFIX_CARDS);
+        $listSortStack = SportListingSort::parseStack($request, SportListingSort::PREFIX_LIST);
+        $activeSortStack = $view === 'cards'
+            ? $cardsSortStack
+            : SportListingSort::normalizeListStack($listSortStack);
+
+        $query = Sport::with(['creator']);
+
+        if ($onlyMine) {
+            $query->where('created_by', auth()->id());
+        }
 
         if ($q !== '') {
-            $like = '%' . addcslashes($q, '%_\\') . '%';
+            $like = '%'.addcslashes($q, '%_\\').'%';
             $query->where('name', 'like', $like);
         }
 
-        $sports = $query->paginate($perPage)->withQueryString();
-        $onlyMine = true;
+        SportListingSort::applyToQuery($query, $activeSortStack);
 
-        return view('sports.index', compact('sports', 'q', 'view', 'perPage', 'onlyMine'));
+        $sports = $query->paginate($perPage)->withQueryString();
+
+        return compact(
+            'sports',
+            'q',
+            'view',
+            'perPage',
+            'onlyMine',
+            'cardsSortStack',
+            'listSortStack',
+        );
     }
 
     /**

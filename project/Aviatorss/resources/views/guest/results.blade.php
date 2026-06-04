@@ -8,7 +8,6 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Результаты соревнований</h1>
-                <p class="mt-1 text-sm text-gray-600 sm:text-base">Все результаты завершённых соревнований</p>
             </div>
         </div>
 
@@ -113,7 +112,7 @@
                         <div class="flex min-w-0 flex-1 flex-col p-5">
                             <div class="mb-2 flex items-start justify-between gap-3">
                                 <h3 class="min-w-0 flex-1 text-lg font-semibold leading-snug text-gray-900">
-                                    <a href="{{ route('guest.competitions.show', ['competition' => $result->competition]) }}" class="transition hover:text-blue-600">
+                                    <a href="{{ route('guest.results.show', ['competition' => $result->competition]) }}" class="transition hover:text-blue-600">
                                         {{ $result->competition->name }}
                                     </a>
                                 </h3>
@@ -139,6 +138,10 @@
                                 @endif
                             </p>
                             <div class="mb-3 space-y-1 text-xs text-gray-600 sm:text-sm">
+                                <p>
+                                    <span class="font-medium text-gray-700">Вид участия:</span>
+                                    {{ $result->competition->resultFormatLabel() }}
+                                </p>
                                 <p>
                                     <span class="font-medium text-gray-700">Вид спорта:</span>
                                     {{ $result->competition->sport?->name ?? '—' }}
@@ -167,7 +170,7 @@
                                 @endif
                             </div>
                             <a
-                                href="{{ route('guest.competitions.show', ['competition' => $result->competition]) }}"
+                                href="{{ route('guest.results.show', ['competition' => $result->competition]) }}"
                                 class="mt-auto block rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-700"
                             >
                                 Подробнее

@@ -4,11 +4,27 @@
 
 @section('content')
     @php
+        use App\Support\SportListingSort;
+
         $sportsView = ($view ?? 'list') === 'cards' ? 'cards' : 'list';
-        $sportsIndexBaseParams = array_filter([
+        $cardsSortStack = $cardsSortStack ?? SportListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? SportListingSort::defaultStack();
+        $sportsListingRoute = ($onlyMine ?? false) ? 'sports.my' : 'sports.index';
+        $sportsBaseListingParams = array_filter([
+            'q' => ($q ?? '') !== '' ? $q : null,
             'view' => $sportsView === 'cards' ? 'cards' : null,
             'per_page' => (int) ($perPage ?? 10) !== 10 ? (string) (int) ($perPage ?? 10) : null,
         ], fn ($v) => $v !== null && $v !== '');
+        $sportsResetListingUrl = SportListingSort::listingUrl(
+            $sportsListingRoute,
+            array_filter([
+                'view' => $sportsView === 'cards' ? 'cards' : null,
+                'per_page' => (int) ($perPage ?? 10) !== 10 ? (string) (int) ($perPage ?? 10) : null,
+            ], fn ($v) => $v !== null && $v !== ''),
+            SportListingSort::defaultStack(),
+            SportListingSort::defaultStack(),
+            ['page' => 1]
+        );
     @endphp
     <div class="space-y-6">
         <!-- Заголовок и кнопка создания -->
@@ -58,6 +74,7 @@
                             <input type="hidden" name="view" value="cards">
                         @endif
                         <input type="hidden" name="per_page" id="sports_per_page_hidden" value="{{ (int)($perPage ?? 10) }}">
+                        @include('sports.partials.sort-hidden-inputs', compact('cardsSortStack', 'listSortStack'))
                         <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end lg:flex-nowrap lg:gap-3 xl:gap-4">
                             <div class="min-w-0 w-full sm:min-w-[12rem] sm:flex-1 lg:w-52 lg:flex-none lg:shrink-0 xl:w-60">
                                 <label for="sports_filter_q" class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Поиск</label>
@@ -83,7 +100,7 @@
                                     Применить
                                 </button>
                                 <a
-                                    href="{{ ($onlyMine ?? false) ? route('sports.my', $sportsIndexBaseParams) : route('sports.index', $sportsIndexBaseParams) }}"
+                                    href="{{ $sportsResetListingUrl }}"
                                     class="inline-flex h-10 min-w-[7rem] flex-1 items-center justify-center rounded-lg border-2 border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 sm:flex-none"
                                 >
                                     Сбросить
@@ -94,13 +111,27 @@
                 </div>
             </div>
             <div class="flex shrink-0 flex-col">
-                @include('sports.partials.view-toolbar', ['view' => $sportsView, 'q' => $q ?? ''])
+                @include('sports.partials.view-toolbar', [
+                    'view' => $sportsView,
+                    'listingRoute' => $sportsListingRoute,
+                    'baseListingParams' => $sportsBaseListingParams,
+                    'cardsSortStack' => $cardsSortStack,
+                    'listSortStack' => $listSortStack,
+                ])
             </div>
         </div>
 
         <!-- Список видов спорта -->
         @if($sports->count() > 0)
             @if($sportsView === 'cards')
+                <div class="mb-4">
+                @include('sports.partials.cards-sort-bar', [
+                    'listingRoute' => $sportsListingRoute,
+                    'baseListingParams' => $sportsBaseListingParams,
+                    'cardsSortStack' => $cardsSortStack,
+                    'listSortStack' => $listSortStack,
+                ])
+                </div>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     @foreach($sports as $sport)
                         <div class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow-md">
@@ -152,7 +183,17 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Название</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    @include('sports.partials.table-sort-header', [
+                                        'listingRoute' => $sportsListingRoute,
+                                        'baseListingParams' => $sportsBaseListingParams,
+                                        'cardsSortStack' => $cardsSortStack,
+                                        'listSortStack' => $listSortStack,
+                                        'field' => 'name',
+                                        'label' => 'Название',
+                                        'defaultOrder' => 'asc',
+                                    ])
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Описание</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Создатель</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
@@ -234,7 +275,7 @@
                 <p class="mt-1 text-sm text-gray-500">Попробуйте изменить запрос или сбросить поиск.</p>
                 <div class="mt-6">
                     <a
-                        href="{{ route('sports.index', $sportsIndexBaseParams) }}"
+                        href="{{ $sportsResetListingUrl }}"
                         class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
                     >
                         Сбросить поиск

@@ -272,6 +272,7 @@
                                         </a>
                                     </th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Локация</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид участия</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         <a href="{{ route('competitions.index', array_merge($indexParams, ['sort' => 'status', 'order' => $sort === 'status' && $order === 'asc' ? 'desc' : 'asc'])) }}" data-competitions-index-ajax="1" class="flex items-center hover:text-gray-700">
                                             Статус
@@ -320,6 +321,9 @@
                                             <div class="text-gray-500">Адрес: {{ $competition->location->address }}</div>
                                         @endif
                                     </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @include('competitions.student.partials.competition-participation-badge', ['competition' => $competition])
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         @if($competition->status === 'upcoming')

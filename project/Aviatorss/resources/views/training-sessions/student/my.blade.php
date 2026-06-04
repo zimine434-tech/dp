@@ -4,13 +4,17 @@
 
 @section('content')
     @php
+        use App\Support\TrainingSessionListingSort;
+
         $filter = $filter ?? 'all';
         $listingFilters = $listingFilters ?? [];
+        $cardsSortStack = $cardsSortStack ?? TrainingSessionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? TrainingSessionListingSort::defaultStack();
         $studentView = $view ?? 'cards';
         if (! in_array($studentView, ['list', 'cards'], true)) {
             $studentView = 'cards';
         }
-        $queryForStatus = array_filter([
+        $baseListingParams = array_filter([
             'sport_id' => $listingFilters['sport_id'] ?? null,
             'date_from' => $listingFilters['date_from'] ?? null,
             'date_to' => $listingFilters['date_to'] ?? null,
@@ -18,11 +22,20 @@
             'view' => $studentView === 'list' ? 'list' : null,
             'per_page' => ($perPage ?? 50) !== 50 ? (string) ($perPage ?? 50) : null,
         ], fn ($v) => $v !== null && $v !== '');
-        $statusRoute = fn (string $f) => route('training-sessions.student.my', $f === 'all' ? $queryForStatus : array_merge($queryForStatus, ['filter' => $f]));
-        $resetListingUrl = route('training-sessions.student.my', array_filter([
-            'filter' => $filter !== 'all' ? $filter : null,
-            'view' => $studentView === 'list' ? 'list' : null,
-        ]));
+        $statusRoute = fn (string $f) => TrainingSessionListingSort::listingUrl(
+            'training-sessions.student.my',
+            array_merge($baseListingParams, $f === 'all' ? [] : ['filter' => $f]),
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
+        $resetListingUrl = TrainingSessionListingSort::listingUrl(
+            'training-sessions.student.my',
+            array_filter(['filter' => $filter !== 'all' ? $filter : null]),
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
     @endphp
 
     <div class="space-y-6">
@@ -46,6 +59,7 @@
                     @if($filter !== 'all')
                         <input type="hidden" name="filter" value="{{ $filter }}">
                     @endif
+                    @include('training-sessions.partials.sort-hidden-inputs', compact('cardsSortStack', 'listSortStack'))
                     <div class="flex flex-col gap-4 lg:flex-row lg:flex-nowrap lg:items-end lg:gap-4">
                         <div class="w-full min-w-0 shrink-0 lg:w-48 xl:w-52">
                             <label for="ts_my_sport_combobox_trigger" class="mb-1 block text-sm font-medium text-gray-700">Спорт</label>
@@ -97,43 +111,18 @@
 
         @if($allTrainingSessions->total() > 0)
             <div>
-                <div data-training-sessions-list-wrap class="{{ $studentView === 'cards' ? 'hidden' : '' }}">
-                    <div class="overflow-x-auto rounded-lg bg-white shadow-md">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Название</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hidden md:table-cell">Спорт / команда</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Дата и время</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hidden lg:table-cell">Локация</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Статус</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white">
-                                @foreach($allTrainingSessions as $session)
-                                    @include('training-sessions.student.partials.session-row', ['session' => $session])
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div data-training-sessions-cards-wrap class="{{ $studentView === 'list' ? 'hidden' : '' }}">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-                        @foreach($allTrainingSessions as $session)
-                            @include('training-sessions.student.partials.session-card', ['session' => $session])
-                        @endforeach
-                    </div>
-                </div>
-                <div class="mt-4 border-t border-gray-100 px-4 py-3">
-                    <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        <label for="ts_my_per_page_select_combobox_trigger" class="text-xs font-medium uppercase tracking-wide text-gray-500">Показывать по</label>
-                        <x-per-page-combobox :selected="(int)($perPage ?? 50)" input-id="ts_my_per_page_select" />
-                    </div>
-                    @if($allTrainingSessions->hasPages())
-                        {{ $allTrainingSessions->links() }}
-                    @endif
-                </div>
+                @include('training-sessions.partials.listing-sessions-body', [
+                    'sessions' => $allTrainingSessions,
+                    'view' => $studentView,
+                    'perPage' => $perPage ?? 50,
+                    'listingRoute' => 'training-sessions.student.my',
+                    'baseListingParams' => array_merge($baseListingParams, $filter !== 'all' ? ['filter' => $filter] : []),
+                    'cardsSortStack' => $cardsSortStack,
+                    'listSortStack' => $listSortStack,
+                    'rowPartial' => 'training-sessions.student.partials.session-row',
+                    'cardPartial' => 'training-sessions.student.partials.session-card',
+                    'listingAjaxAttr' => '',
+                ])
             </div>
         @else
             <div class="rounded-lg bg-white px-6 py-12 text-center shadow-md">
@@ -190,6 +179,9 @@
             el.classList.toggle('hidden', isCards);
         });
         document.querySelectorAll('[data-training-sessions-cards-wrap]').forEach(function (el) {
+            el.classList.toggle('hidden', !isCards);
+        });
+        document.querySelectorAll('[data-training-sessions-cards-sort-wrap]').forEach(function (el) {
             el.classList.toggle('hidden', !isCards);
         });
         const btnList = document.getElementById('training-sessions-view-list');

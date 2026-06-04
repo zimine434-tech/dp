@@ -286,4 +286,31 @@ class Competition extends Model
 
         return filled($name) ? collect([$name]) : collect();
     }
+
+    /**
+     * Текст описания соревнования без HTML (для проверки, что поле не пустое).
+     */
+    public function visibleDescriptionPlain(): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($this->description ?? ''))));
+    }
+
+    public function hasVisibleDescription(): bool
+    {
+        return $this->visibleDescriptionPlain() !== '';
+    }
+
+    /**
+     * Краткий текст под заголовком: описание соревнования или, если его нет, описание категории.
+     */
+    public function headerSubtitleText(): ?string
+    {
+        if ($this->hasVisibleDescription()) {
+            return null;
+        }
+
+        $categoryDescription = trim((string) ($this->category?->description ?? ''));
+
+        return $categoryDescription !== '' ? $categoryDescription : null;
+    }
 }

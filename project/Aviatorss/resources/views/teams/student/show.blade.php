@@ -137,6 +137,8 @@
             </section>
         </div>
 
+        @include('teams.partials.nearest-training', ['nearestTraining' => $nearestTraining ?? null])
+
         @php
             $currentMembers = $team->members->whereNull('out');
             $currentMemberUserIds = $currentMembers->pluck('user_id')->filter()->all();

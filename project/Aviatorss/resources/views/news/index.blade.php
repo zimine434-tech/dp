@@ -3,6 +3,19 @@
 @section('title', ($onlyMine ?? false) ? 'Мои новости' : 'Новости')
 
 @section('content')
+    @php
+        use App\Support\NewsListingSort;
+
+        $cardsSortStack = $cardsSortStack ?? NewsListingSort::defaultStack();
+        $newsListingRoute = ($onlyMine ?? false) ? 'news.my' : 'news.index';
+        $newsBaseListingParams = array_filter([
+            'q' => ($q ?? '') !== '' ? $q : null,
+            'date_from' => $dateFrom ?? null,
+            'date_to' => $dateTo ?? null,
+            'news_status' => ($newsStatus ?? 'all') !== 'all' ? $newsStatus : null,
+            'per_page' => (int) ($perPage ?? 10) !== 10 ? (string) (int) ($perPage ?? 10) : null,
+        ], fn ($v) => $v !== null && $v !== '');
+    @endphp
     <div class="space-y-6">
         <!-- Заголовок и кнопка создания -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -99,7 +112,16 @@
                     </div>
                 </div>
             </form>
+            <div id="news-sort-hidden-inputs" class="hidden" aria-hidden="true">
+                @include('news.partials.sort-hidden-inputs', compact('cardsSortStack'))
+            </div>
         </div>
+
+        @include('news.partials.news-sort-bar', [
+            'listingRoute' => $newsListingRoute,
+            'baseListingParams' => $newsBaseListingParams,
+            'cardsSortStack' => $cardsSortStack,
+        ])
 
         <section
             id="published-news-section"
@@ -202,6 +224,62 @@
                 return '';
             }
 
+            function getSortWrap() {
+                return document.getElementById('news-sort-hidden-inputs');
+            }
+
+            function removeSortParams(params) {
+                ['cards_sort', 'cards_order'].forEach(function (key) {
+                    while (params.has(key)) {
+                        params.delete(key);
+                    }
+                });
+            }
+
+            function appendSortParams(params) {
+                var wrap = getSortWrap();
+                if (!wrap) {
+                    return;
+                }
+                removeSortParams(params);
+                wrap.querySelectorAll('input[name]').forEach(function (input) {
+                    if (!input.name) {
+                        return;
+                    }
+                    if (input.name.endsWith('[]')) {
+                        params.append(input.name, input.value);
+                    } else {
+                        params.set(input.name, input.value);
+                    }
+                });
+            }
+
+            function syncSortHiddenFromUrl(url) {
+                var wrap = getSortWrap();
+                if (!wrap) {
+                    return;
+                }
+                removeSortParams(url.searchParams);
+                var sorts = url.searchParams.getAll('cards_sort[]');
+                if (!sorts.length) {
+                    sorts = url.searchParams.getAll('cards_sort');
+                }
+                var orders = url.searchParams.getAll('cards_order[]');
+                if (!orders.length) {
+                    orders = url.searchParams.getAll('cards_order');
+                }
+                var html = '';
+                if (url.searchParams.get('cards_sort') === 'none' || (sorts.length === 0 && url.searchParams.has('cards_sort'))) {
+                    html = '<input type="hidden" name="cards_sort" value="none">';
+                } else if (sorts.length) {
+                    sorts.forEach(function (field, i) {
+                        html += '<input type="hidden" name="cards_sort[]" value="' + field + '">';
+                        html += '<input type="hidden" name="cards_order[]" value="' + (orders[i] || 'asc') + '">';
+                    });
+                }
+                wrap.innerHTML = html;
+            }
+
             function buildListingsUrl() {
                 var url = new URL(form.action, window.location.origin);
                 var params = new URLSearchParams(new FormData(form));
@@ -213,6 +291,7 @@
                 }
                 params.delete('published');
                 params.delete('draft');
+                appendSortParams(params);
                 url.search = params.toString();
                 return url;
             }
@@ -229,7 +308,35 @@
                 });
             }
 
+            document.addEventListener('click', function (e) {
+                if (e.defaultPrevented || e.button !== 0) return;
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                var sortLink = e.target.closest('[data-news-sort-link]');
+                if (!sortLink || !sortLink.href) return;
+                e.preventDefault();
+                clearTimeout(debounceTimer);
+                debounceTimer = null;
+                refreshFromUrl(new URL(sortLink.href, window.location.origin));
+            });
+
+            function replaceNewsSortBar(html) {
+                if (!html) {
+                    return;
+                }
+                var current = document.querySelector('[data-news-sort-bar]');
+                if (!current) {
+                    return;
+                }
+                var tmp = document.createElement('div');
+                tmp.innerHTML = html;
+                var next = tmp.querySelector('[data-news-sort-bar]');
+                if (next) {
+                    current.replaceWith(next);
+                }
+            }
+
             function applyListingPayload(data) {
+                replaceNewsSortBar(data.sort_bar_html || '');
                 var m = data.meta || {};
                 if (publishedBadge && typeof m.published_total !== 'undefined') {
                     publishedBadge.textContent = String(m.published_total);
@@ -325,6 +432,7 @@
                         applyListingPayload(data);
                         var displayUrl = new URL(url.toString());
                         displayUrl.searchParams.delete('ajax');
+                        syncSortHiddenFromUrl(displayUrl);
                         var path = displayUrl.pathname + (displayUrl.search ? displayUrl.search : '');
                         if (window.location.pathname + window.location.search !== path) {
                             history.replaceState(null, '', path);

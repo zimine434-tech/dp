@@ -4,22 +4,48 @@
 
 @section('content')
     @php
+        use App\Support\StudentCompetitionListingSort;
+
         $filter = $filter ?? 'upcoming';
         $listingFilters = $listingFilters ?? [];
+        $cardsSortStack = $cardsSortStack ?? StudentCompetitionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultStack();
         $studentView = $view ?? 'cards';
         if (! in_array($studentView, ['list', 'cards'], true)) {
             $studentView = 'cards';
         }
-        $queryForStatus = array_filter([
+        $categoryFilterOptions = collect($categoriesForFilter ?? [])
+            ->map(fn ($category) => ['value' => (string) $category->id, 'label' => (string) $category->name_category])
+            ->values()
+            ->all();
+        $baseListingParams = array_filter([
             'sport_id' => $listingFilters['sport_id'] ?? null,
+            'competition_category_id' => $listingFilters['competition_category_id'] ?? null,
             'date_from' => $listingFilters['date_from'] ?? null,
             'date_to' => $listingFilters['date_to'] ?? null,
             'q' => filled($listingFilters['q'] ?? null) ? $listingFilters['q'] : null,
             'view' => $studentView === 'list' ? 'list' : null,
             'per_page' => ($perPage ?? 50) !== 50 ? (string) ($perPage ?? 50) : null,
         ], fn ($v) => $v !== null && $v !== '');
-        $statusRoute = fn (string $f) => route('competitions.index', array_merge($queryForStatus, ['filter' => $f]));
-        $resetListingUrl = route('competitions.index', ['filter' => $filter]);
+        $listingParams = StudentCompetitionListingSort::mergeQueryParams(
+            array_merge($baseListingParams, ['filter' => $filter]),
+            $cardsSortStack,
+            $listSortStack
+        );
+        $statusRoute = fn (string $f) => StudentCompetitionListingSort::listingUrl(
+            'competitions.index',
+            array_merge($baseListingParams, ['filter' => $f]),
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
+        $resetListingUrl = StudentCompetitionListingSort::listingUrl(
+            'competitions.index',
+            ['filter' => $filter],
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
     @endphp
     <div class="space-y-6">
         <!-- Заголовок -->
@@ -36,7 +62,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
             <div class="flex min-w-0 flex-1 flex-col">
                 @php $lf = $listingFilters; @endphp
-                <form method="GET" action="{{ route('competitions.index') }}" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <form id="competitions-student-filters-form" method="GET" action="{{ route('competitions.index') }}" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                     <input type="hidden" name="page" value="1">
                     <input type="hidden" name="filter" value="{{ $filter }}">
                     <input type="hidden" name="view" id="comp_filter_view" value="{{ $studentView }}">
@@ -50,6 +76,17 @@
                                 name="sport_id"
                                 input-id="comp_sport"
                                 empty-label="Все виды"
+                                variant="filter"
+                            />
+                        </div>
+                        <div class="w-full min-w-0 shrink-0 lg:w-48 xl:w-52">
+                            <label for="comp_category_combobox_trigger" class="mb-1 block text-sm font-medium text-gray-700">Категория</label>
+                            <x-filter-combobox
+                                name="competition_category_id"
+                                :selected="$lf['competition_category_id'] ?? ''"
+                                :options="$categoryFilterOptions"
+                                empty-label="Все категории"
+                                input-id="comp_category"
                                 variant="filter"
                             />
                         </div>
@@ -69,251 +106,44 @@
                         </div>
                         <div class="flex w-full shrink-0 gap-2 lg:w-auto">
                             <button type="submit" class="inline-flex h-10 min-w-[7.5rem] flex-1 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:flex-none">Применить</button>
-                            <a href="{{ $resetListingUrl }}" class="inline-flex h-10 min-w-[7.5rem] flex-1 items-center justify-center rounded-md border border-gray-300 bg-gray-200 px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:bg-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:flex-none">Сбросить</a>
+                            <a href="{{ $resetListingUrl }}" data-competitions-student-ajax="1" class="inline-flex h-10 min-w-[7.5rem] flex-1 items-center justify-center rounded-md border border-gray-300 bg-gray-200 px-4 text-sm font-medium text-gray-800 shadow-sm transition hover:bg-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:flex-none">Сбросить</a>
                         </div>
                     </div>
                 </form>
+                <div id="competitions-student-sort-hidden-inputs" class="hidden" aria-hidden="true">
+                    @include('competitions.student.partials.sort-hidden-inputs', compact('cardsSortStack', 'listSortStack'))
+                </div>
             </div>
             <div class="flex shrink-0 flex-col">
                 @include('competitions.partials.view-toolbar', ['view' => $studentView])
             </div>
         </div>
 
-        <!-- Фильтры по статусам -->
-        <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p class="mb-3 text-xs font-medium text-gray-500">Статус</p>
-            <div class="flex flex-wrap gap-2">
-                <a
-                    href="{{ $statusRoute('all') }}"
-                    class="inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 {{ $filter === 'all' ? 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100' }}"
-                >
-                    Все
-                </a>
-                <a
-                    href="{{ $statusRoute('upcoming') }}"
-                    class="inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 {{ $filter === 'upcoming' ? 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100' }}"
-                >
-                    Предстоящие
-                </a>
-                <a
-                    href="{{ $statusRoute('ongoing') }}"
-                    class="inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 {{ $filter === 'ongoing' ? 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100' }}"
-                >
-                    Идут сейчас
-                </a>
-                <a
-                    href="{{ $statusRoute('finished') }}"
-                    class="inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 {{ $filter === 'finished' ? 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100' }}"
-                >
-                    Завершенные
-                </a>
-                <a
-                    href="{{ $statusRoute('cancelled') }}"
-                    class="inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 {{ $filter === 'cancelled' ? 'border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700' : 'border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100' }}"
-                >
-                    Отменённые
-                </a>
-            </div>
-        </div>
-
-        @if($competitions->total() > 0)
-            <div>
-                <div data-competitions-list-wrap class="{{ $studentView === 'cards' ? 'hidden' : '' }}">
-                    <div class="overflow-x-auto rounded-lg bg-white shadow-md">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Название</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hidden md:table-cell">Вид спорта</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Дата</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hidden lg:table-cell">Место</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Статус</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white">
-                                @foreach($competitions as $competition)
-                                    @include('competitions.student.partials.competition-row', ['competition' => $competition])
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div data-competitions-cards-wrap class="{{ $studentView === 'list' ? 'hidden' : '' }}">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-                        @foreach($competitions as $competition)
-                            @include('competitions.student.partials.competition-card', ['competition' => $competition])
-                        @endforeach
-                    </div>
-                </div>
-                <div class="border-t border-gray-100 px-4 py-3">
-                    <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        <label for="comp_per_page_select_combobox_trigger" class="text-xs font-medium uppercase tracking-wide text-gray-500">Показывать по</label>
-                        <x-per-page-combobox :selected="(int)($perPage ?? 50)" input-id="comp_per_page_select" />
-                    </div>
-                    @if($competitions->hasPages())
-                        {{ $competitions->links() }}
-                    @endif
-                </div>
-            </div>
-        @else
-            <div class="rounded-lg bg-white px-6 py-12 text-center shadow-md">
-                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                </svg>
-                @if(filled($listingFilters['q'] ?? null))
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">По названию ничего не найдено</h3>
-                    <p class="mt-1 text-sm text-gray-500">Измените запрос или сбросьте фильтры.</p>
-                @elseif($filter === 'cancelled')
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">Отменённых соревнований нет</h3>
-                    <p class="mt-1 text-sm text-gray-500">Смените фильтры или выберите другой статус.</p>
-                @elseif($filter === 'upcoming')
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">Предстоящих соревнований пока нет.</h3>
-                    <p class="mt-1 text-sm text-gray-500">Они появятся после публикации.</p>
-                @elseif($filter === 'all')
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">Нет доступных соревнований</h3>
-                    <p class="mt-1 text-sm text-gray-500">Смените фильтры по дате или виду спорта либо нажмите «Сбросить».</p>
-                @else
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">Нет соревнований по условиям</h3>
-                    <p class="mt-1 text-sm text-gray-500">
-                        Измените статус выше или сбросьте фильтры по дате и виду спорта (кнопка «Сбросить»).
-                    </p>
-                @endif
-            </div>
-        @endif
+        @include('competitions.student.partials.listing-ajax-region', [
+            'listingPage' => 'index',
+            'listingRoute' => 'competitions.index',
+            'filter' => $filter,
+            'listingFilters' => $listingFilters,
+            'baseListingParams' => $baseListingParams,
+            'cardsSortStack' => $cardsSortStack,
+            'listSortStack' => $listSortStack,
+            'view' => $studentView,
+            'competitions' => $competitions,
+            'perPage' => $perPage,
+            'statusRoute' => $statusRoute,
+            'perPageSelectId' => 'comp_per_page_select',
+            'perPageComboboxTriggerId' => 'comp_per_page_select_combobox_trigger',
+        ])
     </div>
 @endsection
 
 @push('scripts')
-<script>
-(function () {
-    const VIEW_STORAGE_KEY = 'competitions_student_view';
-    const viewHidden = document.getElementById('comp_filter_view');
-    const PER_PAGE_STORAGE_KEY = 'competitions_student_per_page';
-    const perPageHidden = document.getElementById('comp_filter_per_page');
-    const perPageSelect = document.getElementById('comp_per_page_select');
-
-    function getStoredViewMode() {
-        try {
-            const v = localStorage.getItem(VIEW_STORAGE_KEY);
-            if (v === 'list' || v === 'cards') return v;
-        } catch (e) {}
-        return null;
-    }
-
-    function persistViewMode(mode) {
-        try {
-            localStorage.setItem(VIEW_STORAGE_KEY, mode === 'cards' ? 'cards' : 'list');
-        } catch (e) {}
-    }
-
-    function syncViewToForm(mode) {
-        if (viewHidden) {
-            viewHidden.value = mode === 'cards' ? 'cards' : 'list';
-        }
-    }
-
-    function getServerViewMode() {
-        if (viewHidden && viewHidden.value === 'list') return 'list';
-        return 'cards';
-    }
-
-    function applyCompetitionViewMode(mode) {
-        const isCards = mode === 'cards';
-        document.querySelectorAll('[data-competitions-list-wrap]').forEach(function (el) {
-            el.classList.toggle('hidden', isCards);
-        });
-        document.querySelectorAll('[data-competitions-cards-wrap]').forEach(function (el) {
-            el.classList.toggle('hidden', !isCards);
-        });
-        const btnList = document.getElementById('competitions-view-list');
-        const btnCards = document.getElementById('competitions-view-cards');
-        if (btnList && btnCards) {
-            btnList.setAttribute('aria-selected', !isCards ? 'true' : 'false');
-            btnCards.setAttribute('aria-selected', isCards ? 'true' : 'false');
-            btnList.classList.toggle('bg-white', !isCards);
-            btnList.classList.toggle('shadow-sm', !isCards);
-            btnList.classList.toggle('text-gray-900', !isCards);
-            btnList.classList.toggle('text-gray-600', isCards);
-            btnCards.classList.toggle('bg-white', isCards);
-            btnCards.classList.toggle('shadow-sm', isCards);
-            btnCards.classList.toggle('text-gray-900', isCards);
-            btnCards.classList.toggle('text-gray-600', !isCards);
-        }
-    }
-
-    function updateCompetitionViewInUrl(mode) {
-        const url = new URL(window.location.href);
-        if (mode === 'cards') {
-            url.searchParams.delete('view');
-        } else {
-            url.searchParams.set('view', 'list');
-        }
-        const path = url.pathname + (url.search ? url.search : '');
-        if (window.location.pathname + window.location.search !== path) {
-            history.replaceState(null, '', path);
-        }
-    }
-
-    document.addEventListener('click', function (e) {
-        if (e.defaultPrevented) return;
-        const viewToggle = e.target.closest('#competitions-view-toolbar .competitions-view-toggle');
-        if (!viewToggle) return;
-        const mode = viewToggle.getAttribute('data-view');
-        if (mode !== 'list' && mode !== 'cards') return;
-        e.preventDefault();
-        persistViewMode(mode);
-        syncViewToForm(mode);
-        applyCompetitionViewMode(mode);
-        updateCompetitionViewInUrl(mode);
-    });
-
-    const serverView = getServerViewMode();
-    const stored = getStoredViewMode();
-    if (stored !== null && stored !== serverView) {
-        syncViewToForm(stored);
-        applyCompetitionViewMode(stored);
-        updateCompetitionViewInUrl(stored);
-    } else {
-        persistViewMode(serverView);
-        applyCompetitionViewMode(serverView);
-    }
-
-    function initPerPage() {
-        if (!perPageHidden || !perPageSelect) return;
-        const url = new URL(window.location.href);
-        const urlVal = url.searchParams.get('per_page');
-        let current = urlVal ? parseInt(urlVal, 10) : parseInt(perPageHidden.value || '50', 10);
-        if (![10,25,50,100].includes(current)) current = 50;
-
-        // If per_page is missing, try localStorage
-        if (!urlVal) {
-            try {
-                const storedPer = parseInt(localStorage.getItem(PER_PAGE_STORAGE_KEY) || '', 10);
-                if ([10,25,50,100].includes(storedPer) && storedPer !== current) {
-                    url.searchParams.set('per_page', String(storedPer));
-                    history.replaceState(null, '', url.pathname + '?' + url.searchParams.toString());
-                    current = storedPer;
-                }
-            } catch (e) {}
-        }
-
-        perPageHidden.value = String(current);
-        perPageSelect.value = String(current);
-
-        perPageSelect.addEventListener('change', function () {
-            const v = parseInt(String(perPageSelect.value || '50'), 10);
-            const val = [10,25,50,100].includes(v) ? v : 50;
-            perPageHidden.value = String(val);
-            try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(val)); } catch (e) {}
-
-            const form = perPageHidden.closest('form');
-            if (form) form.submit();
-        });
-    }
-
-    initPerPage();
-})();
-</script>
+    @include('competitions.student.partials.listing-ajax-scripts', [
+        'formId' => 'competitions-student-filters-form',
+        'viewHiddenId' => 'comp_filter_view',
+        'perPageHiddenId' => 'comp_filter_per_page',
+        'perPageSelectId' => 'comp_per_page_select',
+        'sortHiddenWrapId' => 'competitions-student-sort-hidden-inputs',
+        'sortStorageKey' => 'index',
+    ])
 @endpush
