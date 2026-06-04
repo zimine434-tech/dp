@@ -4,9 +4,9 @@
 
 @section('content')
     @php
+        use App\Support\StudentCompetitionListingSort;
+
         $filter = $filter ?? 'all';
-        $sort = $sort ?? 'start_date';
-        $order = $order ?? 'desc';
         $q = $q ?? '';
         $dateFrom = $dateFrom ?? null;
         $dateTo = $dateTo ?? null;
@@ -14,20 +14,39 @@
         $view = $view ?? 'list';
         $perPage = $perPage ?? 50;
         $sports = $sports ?? collect();
+        $cardsSortStack = $cardsSortStack ?? StudentCompetitionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultStack();
+        $teacherListingRoute = ($onlyMine ?? false) ? 'competitions.my' : 'competitions.index';
         $hasSearchFilters = $q !== '' || $dateFrom || $dateTo || $sportId;
-        $indexParams = array_filter([
+        $teacherBaseListingParams = array_filter([
             'from' => 'index',
-            'filter' => $filter,
-            'sort' => $sort,
-            'order' => $order,
+            'filter' => $filter !== 'all' ? $filter : null,
             'view' => $view !== 'list' ? $view : null,
             'per_page' => (int) $perPage !== 50 ? (string) (int) $perPage : null,
             'q' => $q !== '' ? $q : null,
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'sport_id' => $sportId,
-            'page' => request()->query('page'),
         ], fn ($v) => $v !== null && $v !== '');
+        $teacherStatusRoute = fn (string $statusFilter) => StudentCompetitionListingSort::listingUrl(
+            $teacherListingRoute,
+            array_merge($teacherBaseListingParams, ['filter' => $statusFilter !== 'all' ? $statusFilter : null]),
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
+        $teacherResetListingUrl = StudentCompetitionListingSort::listingUrl(
+            $teacherListingRoute,
+            array_filter(['filter' => $filter !== 'all' ? $filter : null], fn ($v) => $v !== null && $v !== ''),
+            $cardsSortStack,
+            $listSortStack,
+            ['page' => 1]
+        );
+        $indexParams = array_merge(
+            ['from' => 'index'],
+            StudentCompetitionListingSort::mergeQueryParams($teacherBaseListingParams, $cardsSortStack, $listSortStack),
+            array_filter(['page' => request()->query('page')], fn ($v) => $v !== null && $v !== '')
+        );
         $competitionShowParams = fn ($competition) => array_merge(
             ['competition' => $competition],
             $indexParams,
@@ -99,35 +118,35 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between lg:gap-6">
             <div id="competitions-status-tabs" class="flex flex-wrap items-center gap-2 rounded-lg bg-white p-4 shadow-md">
                 <a 
-                    href="{{ route('competitions.index', array_merge($indexParams, ['filter' => 'all'])) }}" 
+                    href="{{ $teacherStatusRoute('all') }}" 
                     data-competitions-index-ajax="1"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition {{ $filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}"
                 >
                     Все
                 </a>
                 <a 
-                    href="{{ route('competitions.index', array_merge($indexParams, ['filter' => 'upcoming'])) }}" 
+                    href="{{ $teacherStatusRoute('upcoming') }}" 
                     data-competitions-index-ajax="1"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition {{ $filter === 'upcoming' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}"
                 >
                     Предстоящие
                 </a>
                 <a 
-                    href="{{ route('competitions.index', array_merge($indexParams, ['filter' => 'ongoing'])) }}" 
+                    href="{{ $teacherStatusRoute('ongoing') }}" 
                     data-competitions-index-ajax="1"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition {{ $filter === 'ongoing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}"
                 >
                     Идут сейчас
                 </a>
                 <a 
-                    href="{{ route('competitions.index', array_merge($indexParams, ['filter' => 'finished'])) }}" 
+                    href="{{ $teacherStatusRoute('finished') }}" 
                     data-competitions-index-ajax="1"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition {{ $filter === 'finished' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}"
                 >
                     Завершенные
                 </a>
                 <a 
-                    href="{{ route('competitions.index', array_merge($indexParams, ['filter' => 'cancelled'])) }}" 
+                    href="{{ $teacherStatusRoute('cancelled') }}" 
                     data-competitions-index-ajax="1"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition {{ $filter === 'cancelled' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}"
                 >
@@ -168,12 +187,13 @@
 
         <!--Поиск и фильтры-->
         <div class="bg-white rounded-lg shadow-md p-4">
-            <form id="competitions-filters-form" method="get" action="{{ route('competitions.index') }}" class="space-y-4" data-ajax-listing-filters="1">
+            <form id="competitions-filters-form" method="get" action="{{ route($teacherListingRoute) }}" class="space-y-4" data-ajax-listing-filters="1">
                 <input type="hidden" name="page" value="1">
                 <input type="hidden" name="filter" value="{{ $filter }}">
-                <input type="hidden" name="sort" value="{{ $sort }}">
-                <input type="hidden" name="order" value="{{ $order }}">
                 <input type="hidden" name="view" id="competitions-view-input" value="{{ $view }}">
+                <div id="competitions-teacher-sort-hidden-inputs" class="hidden" aria-hidden="true">
+                    @include('competitions.student.partials.sort-hidden-inputs', compact('cardsSortStack', 'listSortStack'))
+                </div>
                 <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end lg:flex-nowrap lg:gap-3 xl:gap-4">
                     <div class="min-w-0 w-full sm:min-w-[12rem] sm:flex-1 lg:w-52 lg:flex-none lg:shrink-0 xl:w-60">
                         <label for="competitions-q" class="mb-1 block min-h-[1rem] text-xs font-medium uppercase tracking-wide text-gray-500">Поиск</label>
@@ -229,7 +249,7 @@
                             Применить
                         </button>
                         <a
-                            href="{{ route('competitions.index', array_filter(['filter' => $filter, 'sort' => $sort, 'order' => $order])) }}"
+                            href="{{ $teacherResetListingUrl }}"
                             data-competitions-index-ajax="1"
                             class="inline-flex h-10 min-w-[7rem] flex-1 items-center justify-center rounded-lg border-2 border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 sm:flex-none"
                         >
@@ -247,48 +267,49 @@
             aria-label="Список соревнований"
         >
         @if($competitions->isNotEmpty())
+            <div class="{{ $view === 'list' ? 'hidden' : 'mb-4' }}" data-competitions-teacher-cards-sort-wrap>
+                @include('competitions.student.partials.cards-sort-bar', [
+                    'listingRoute' => $teacherListingRoute,
+                    'baseListingParams' => $teacherBaseListingParams,
+                    'cardsSortStack' => $cardsSortStack,
+                    'listSortStack' => $listSortStack,
+                    'listingAjaxAttr' => 'data-competitions-index-ajax',
+                ])
+            </div>
             <div id="competitions-teacher-list-wrap" class="bg-white rounded-lg shadow-md overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Название</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        @include('competitions.student.partials.table-sort-header', [
+                                            'listingRoute' => $teacherListingRoute,
+                                            'baseListingParams' => $teacherBaseListingParams,
+                                            'cardsSortStack' => $cardsSortStack,
+                                            'listSortStack' => $listSortStack,
+                                            'field' => 'name',
+                                            'label' => 'Название',
+                                            'defaultOrder' => 'asc',
+                                            'listingAjaxAttr' => 'data-competitions-index-ajax',
+                                        ])
+                                    </th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Вид спорта</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Категория</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        <a href="{{ route('competitions.index', array_merge($indexParams, ['sort' => 'start_date', 'order' => $sort === 'start_date' && $order === 'asc' ? 'desc' : 'asc'])) }}" data-competitions-index-ajax="1" class="flex items-center hover:text-gray-700">
-                                            Даты
-                                            @if($sort === 'start_date')
-                                                @if($order === 'asc')
-                                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
-                                                    </svg>
-                                                @else
-                                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                                    </svg>
-                                                @endif
-                                            @endif
-                                        </a>
+                                        @include('competitions.student.partials.table-sort-header', [
+                                            'listingRoute' => $teacherListingRoute,
+                                            'baseListingParams' => $teacherBaseListingParams,
+                                            'cardsSortStack' => $cardsSortStack,
+                                            'listSortStack' => $listSortStack,
+                                            'field' => 'start_date',
+                                            'label' => 'Даты',
+                                            'defaultOrder' => 'desc',
+                                            'listingAjaxAttr' => 'data-competitions-index-ajax',
+                                        ])
                                     </th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Локация</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид участия</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        <a href="{{ route('competitions.index', array_merge($indexParams, ['sort' => 'status', 'order' => $sort === 'status' && $order === 'asc' ? 'desc' : 'asc'])) }}" data-competitions-index-ajax="1" class="flex items-center hover:text-gray-700">
-                                            Статус
-                                            @if($sort === 'status')
-                                                @if($order === 'asc')
-                                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
-                                                    </svg>
-                                                @else
-                                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                                    </svg>
-                                                @endif
-                                            @endif
-                                        </a>
-                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Статус</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
                                 </tr>
                             </thead>
@@ -436,7 +457,7 @@
                 <h3 class="mt-2 text-sm font-medium text-gray-900">Нет соревнований</h3>
                 <p class="mt-1 text-sm text-gray-500">
                     @if($hasSearchFilters)
-                        По заданным условиям поиска и фильтров ничего не найдено. Измените запрос или <a href="{{ route('competitions.index', array_filter(['filter' => $filter, 'sort' => $sort, 'order' => $order])) }}" data-competitions-index-ajax="1" class="text-blue-600 hover:text-blue-800 font-medium">сбросьте фильтры</a>.
+                        По заданным условиям поиска и фильтров ничего не найдено. Измените запрос или <a href="{{ $teacherResetListingUrl }}" data-competitions-index-ajax="1" class="text-blue-600 hover:text-blue-800 font-medium">сбросьте фильтры</a>.
                     @elseif($filter !== 'all')
                         Нет соревнований с выбранным статусом.
                     @else
@@ -503,6 +524,10 @@
         const isCards = mode === 'cards';
         listWrap.classList.toggle('hidden', isCards);
         cardsWrap.classList.toggle('hidden', !isCards);
+        document.querySelectorAll('[data-competitions-teacher-cards-sort-wrap]').forEach(function (el) {
+            el.classList.toggle('hidden', !isCards);
+            el.classList.toggle('mb-4', isCards);
+        });
 
         btnList.setAttribute('aria-selected', !isCards ? 'true' : 'false');
         btnCards.setAttribute('aria-selected', isCards ? 'true' : 'false');
@@ -537,14 +562,58 @@
         }
     }
 
+    function getSortWrap() {
+        return document.getElementById('competitions-teacher-sort-hidden-inputs');
+    }
+
+    function removeSortParams(params) {
+        ['cards_sort', 'cards_order', 'list_sort', 'list_order'].forEach(function (key) {
+            while (params.has(key)) {
+                params.delete(key);
+            }
+        });
+    }
+
+    function appendSortParams(params) {
+        const wrap = getSortWrap();
+        if (!wrap) {
+            return;
+        }
+        removeSortParams(params);
+        wrap.querySelectorAll('input[name]').forEach(function (input) {
+            if (!input.name) {
+                return;
+            }
+            if (input.name.endsWith('[]')) {
+                params.append(input.name, input.value);
+            } else {
+                params.set(input.name, input.value);
+            }
+        });
+    }
+
+    function replaceSortHiddenInputs(doc) {
+        const nextWrap = doc.getElementById('competitions-teacher-sort-hidden-inputs');
+        const currentWrap = getSortWrap();
+        if (!nextWrap || !currentWrap) {
+            return;
+        }
+        currentWrap.innerHTML = nextWrap.innerHTML;
+    }
+
     function buildListUrl(resetPage) {
         const action = form ? (form.getAttribute('action') || window.location.pathname) : window.location.pathname;
         const url = new URL(action, window.location.origin);
         if (form) {
-            url.search = new URLSearchParams(new FormData(form)).toString();
+            const params = new URLSearchParams(new FormData(form));
+            appendSortParams(params);
+            url.search = params.toString();
         }
         if (url.searchParams.get('view') === 'list') {
             url.searchParams.delete('view');
+        }
+        if (url.searchParams.get('filter') === 'all') {
+            url.searchParams.delete('filter');
         }
         if (resetPage) {
             url.searchParams.delete('page');
@@ -558,7 +627,7 @@
 
     function applyQueryToForm(params) {
         if (!form) return;
-        ['filter', 'sort', 'order', 'view'].forEach(function (name) {
+        ['filter', 'view'].forEach(function (name) {
             const el = form.elements.namedItem(name);
             if (!el) return;
             if (name === 'view') {
@@ -611,6 +680,8 @@
             if (nextTabs && liveTabs) {
                 liveTabs.replaceWith(document.importNode(nextTabs, true));
             }
+
+            replaceSortHiddenInputs(doc);
 
             if (form) {
                 applyQueryToForm(url.searchParams);

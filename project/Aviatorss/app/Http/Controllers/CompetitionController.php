@@ -43,25 +43,43 @@ class CompetitionController extends Controller
      */
     public function index(Request $request)
     {
-        $filter = $request->get('filter', 'all'); // all, upcoming, ongoing, finished, cancelled
-        $sort = $request->get('sort', 'start_date'); // start_date, status
-        $order = $request->get('order', 'desc'); // asc, desc
+        return view('competitions.index', $this->resolveTeacherCompetitionsListing($request, false));
+    }
+
+    /**
+     * Страница "Мои соревнования" (только созданные текущим преподавателем).
+     */
+    public function myIndex(Request $request)
+    {
+        $user = auth()->user();
+        if (! $user || $user->role !== 'teacher') {
+            abort(403);
+        }
+
+        return view('competitions.index', $this->resolveTeacherCompetitionsListing($request, true));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function resolveTeacherCompetitionsListing(Request $request, bool $onlyMine): array
+    {
+        $filter = $request->get('filter', 'all');
         $archiveThreshold = now()->subMonths(self::COMPETITION_ARCHIVE_MONTHS)->startOfDay();
-        
+
         $q = Str::limit(trim((string) $request->query('q', '')), 255, '');
 
         $dateFrom = null;
         $dateTo = null;
         if ($request->filled('date_from')) {
             try {
-                $dateFrom = \Illuminate\Support\Carbon::parse($request->query('date_from'))->toDateString();
+                $dateFrom = Carbon::parse($request->query('date_from'))->toDateString();
             } catch (\Throwable) {
-                
             }
-        } 
+        }
         if ($request->filled('date_to')) {
             try {
-                $dateTo = \Illuminate\Support\Carbon::parse($request->query('date_to'))->toDateString();
+                $dateTo = Carbon::parse($request->query('date_to'))->toDateString();
             } catch (\Throwable) {
             }
         }
@@ -79,9 +97,12 @@ class CompetitionController extends Controller
 
         $query = Competition::with(['sport', 'team', 'location', 'creator', 'category']);
 
-        // Скрываем из основной страницы завершенные соревнования старше N месяцев (они в архиве).
-        $query->where(function ($q) use ($archiveThreshold) {
-            $q->where('status', '!=', 'finished')
+        if ($onlyMine) {
+            $query->where('created_by', auth()->id());
+        }
+
+        $query->where(function ($builder) use ($archiveThreshold) {
+            $builder->where('status', '!=', 'finished')
                 ->orWhereDate('end_date', '>', $archiveThreshold->toDateString());
         });
 
@@ -89,136 +110,7 @@ class CompetitionController extends Controller
             $like = '%'.addcslashes($q, '%_\\').'%';
             $builder->where('name', 'like', $like);
         });
-        if ($sportId !== null) {
-            $query->whereListingSport($sportId);
-        }
 
-
-        $query->when($dateFrom && $dateTo, function ($builder) use ($dateFrom, $dateTo) {
-            $s = $dateFrom ?? '0000-00-00';
-            $e = $dateTo ?? '9999-12-31';
-            $builder->where('start_date', '<=', $e)
-            ->where('end_date', '>=', $s);
-        });
-         $query->when($dateFrom && ! $dateTo, fn ($builder) => $builder->whereDate('end_date', '>=', $dateFrom));
-         $query->when(! $dateFrom && $dateTo, fn ($builder) => $builder->whereDate('start_date', '<=', $dateTo));
-        
-        // Применяем фильтр по статусу
-        if ($filter !== 'all') {
-            $query->where('status', $filter);
-        }
-        
-        // Применяем сортировку
-        if ($sort === 'status') {
-            // Сортируем по статусу: upcoming, ongoing, finished, cancelled
-            $query->orderByRaw("CASE 
-                WHEN status = 'upcoming' THEN 1 
-                WHEN status = 'ongoing' THEN 2 
-                WHEN status = 'finished' THEN 3 
-                WHEN status = 'cancelled' THEN 4 
-                ELSE 5 
-            END " . strtoupper($order));
-            // Вторичная сортировка по дате
-            $query->orderBy('start_date', $order === 'asc' ? 'desc' : 'asc');
-        } else {
-            // Сортируем по дате (для завершённых — по окончанию, чтобы «новые» были сверху)
-            if ($filter === 'finished') {
-                $query->orderBy('end_date', $order)->orderBy('start_date', $order);
-            } else {
-                $query->orderBy('start_date', $order);
-            }
-            $query->orderBy('id', $order);
-        }
-
-        $view = $request->query('view', 'list');
-        if (! in_array($view, ['list', 'cards'], true)) {
-            $view = 'list';
-        }
-
-        $defaultPerPage = $view === 'cards'
-            ? self::TEACHER_INDEX_PER_PAGE_CARDS
-            : self::TEACHER_INDEX_PER_PAGE_LIST;
-
-        $perPage = (int) $request->query('per_page', $defaultPerPage);
-        if (! in_array($perPage, [10, 25, 50, 100], true)) {
-            $perPage = $defaultPerPage;
-        }
-
-        $competitions = $query->paginate($perPage)->withQueryString();
-
-        $sports = Sport::query()->orderBy('name')->get();
-
-        return view('competitions.index', compact(
-            'competitions',
-            'filter',
-            'sort',
-            'order',
-            'view',
-            'perPage',
-            'q',
-            'dateFrom',
-            'dateTo',
-            'sportId',
-            'sports',
-        ));
-    }
-
-    /**
-     * Страница "Мои соревнования" (только созданные текущим преподавателем).
-     */
-    public function myIndex(Request $request)
-    {
-        $user = auth()->user();
-        if (! $user || $user->role !== 'teacher') {
-            abort(403);
-        }
-
-        $filter = $request->get('filter', 'all'); // all, upcoming, ongoing, finished, cancelled
-        $sort = $request->get('sort', 'start_date'); // start_date, status
-        $order = $request->get('order', 'desc'); // asc, desc
-        $archiveThreshold = now()->subMonths(self::COMPETITION_ARCHIVE_MONTHS)->startOfDay();
-
-        $q = Str::limit(trim((string) $request->query('q', '')), 255, '');
-
-        $dateFrom = null;
-        $dateTo = null;
-        if ($request->filled('date_from')) {
-            try {
-                $dateFrom = \Illuminate\Support\Carbon::parse($request->query('date_from'))->toDateString();
-            } catch (\Throwable) {
-            }
-        }
-        if ($request->filled('date_to')) {
-            try {
-                $dateTo = \Illuminate\Support\Carbon::parse($request->query('date_to'))->toDateString();
-            } catch (\Throwable) {
-            }
-        }
-        if ($dateFrom && $dateTo && $dateFrom > $dateTo) {
-            [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
-        }
-
-        $sportId = null;
-        if ($request->filled('sport_id') && is_numeric($request->query('sport_id'))) {
-            $sid = (int) $request->query('sport_id');
-            if (Sport::whereKey($sid)->exists()) {
-                $sportId = $sid;
-            }
-        }
-
-        $query = Competition::with(['sport', 'team', 'location', 'creator', 'category'])
-            ->where('created_by', $user->id);
-
-        // Скрываем из основной страницы завершенные соревнования старше N месяцев (они в архиве).
-        $query->where(function ($q) use ($archiveThreshold) {
-            $q->where('status', '!=', 'finished')
-                ->orWhereDate('end_date', '>', $archiveThreshold->toDateString());
-        });
-
-        $query->when($q !== '', function ($builder) use ($q) {
-            $like = '%'.addcslashes($q, '%_\\').'%';
-            $builder->where('name', 'like', $like);
-        });
         if ($sportId !== null) {
             $query->whereListingSport($sportId);
         }
@@ -236,28 +128,18 @@ class CompetitionController extends Controller
             $query->where('status', $filter);
         }
 
-        if ($sort === 'status') {
-            $query->orderByRaw("CASE 
-                WHEN status = 'upcoming' THEN 1 
-                WHEN status = 'ongoing' THEN 2 
-                WHEN status = 'finished' THEN 3 
-                WHEN status = 'cancelled' THEN 4 
-                ELSE 5 
-            END " . strtoupper($order));
-            $query->orderBy('start_date', $order === 'asc' ? 'desc' : 'asc');
-        } else {
-            if ($filter === 'finished') {
-                $query->orderBy('end_date', $order)->orderBy('start_date', $order);
-            } else {
-                $query->orderBy('start_date', $order);
-            }
-            $query->orderBy('id', $order);
-        }
+        $cardsSortStack = StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_CARDS);
+        $listSortStack = StudentCompetitionListingSort::normalizeListStack(
+            StudentCompetitionListingSort::parseStack($request, StudentCompetitionListingSort::PREFIX_LIST)
+        );
 
         $view = $request->query('view', 'list');
         if (! in_array($view, ['list', 'cards'], true)) {
             $view = 'list';
         }
+
+        $activeSortStack = $view === 'cards' ? $cardsSortStack : $listSortStack;
+        StudentCompetitionListingSort::applyToQuery($query, $activeSortStack);
 
         $defaultPerPage = $view === 'cards'
             ? self::TEACHER_INDEX_PER_PAGE_CARDS
@@ -271,13 +153,9 @@ class CompetitionController extends Controller
         $competitions = $query->paginate($perPage)->withQueryString();
         $sports = Sport::query()->orderBy('name')->get();
 
-        $onlyMine = true;
-
-        return view('competitions.index', compact(
+        return compact(
             'competitions',
             'filter',
-            'sort',
-            'order',
             'view',
             'perPage',
             'q',
@@ -285,8 +163,10 @@ class CompetitionController extends Controller
             'dateTo',
             'sportId',
             'sports',
+            'cardsSortStack',
+            'listSortStack',
             'onlyMine',
-        ));
+        );
     }
 
     /**
