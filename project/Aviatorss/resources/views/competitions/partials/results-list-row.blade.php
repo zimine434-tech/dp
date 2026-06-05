@@ -10,6 +10,17 @@
         : null;
     $listingTd = 'px-4 py-3 align-top border-b border-gray-300';
     $listingTdParticipant = 'pl-6 pr-4 py-3 align-top border-b border-gray-300';
+    $competitionShowQuery = $competitionShowQuery ?? ['from' => 'results'];
+    $linkToCompetitionShow = ! empty($linkNameToCompetitionShow);
+    $competitionNameHref = $linkToCompetitionShow
+        ? route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery))
+        : route('competitions.results.show', $competition);
+    $participantListHref = $linkToCompetitionShow
+        ? route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery))
+        : route('competitions.results.show', $competition);
+    $detailHref = $linkToCompetitionShow
+        ? route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery))
+        : route('competitions.results.show', $competition);
 @endphp
 <tr class="competition-row results-listing-row"
     data-competition-id="{{ $competition->id }}"
@@ -21,7 +32,7 @@
 >
     <td class="{{ $listingTd }}">
         <div class="font-semibold text-gray-900">
-            <a href="{{ route('competitions.results.show', $competition) }}" class="hover:text-blue-600 transition">
+            <a href="{{ $competitionNameHref }}" class="hover:text-blue-600 transition">
                 {{ $competition->name }}
             </a>
         </div>
@@ -66,7 +77,7 @@
         @else
             <div class="flex items-center min-h-[32px]">
                 <a
-                    href="{{ route('competitions.results.show', $competition) }}"
+                    href="{{ $participantListHref }}"
                     class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
                 >
                     Список участников
@@ -89,7 +100,7 @@
                 </a>
                 @if(!empty($showDetailLink))
                     <a
-                        href="{{ route('competitions.results.show', $competition) }}"
+                        href="{{ $detailHref }}"
                         class="text-gray-700 hover:text-gray-900 px-3 py-1 rounded hover:bg-gray-100 transition"
                     >
                         Подробнее

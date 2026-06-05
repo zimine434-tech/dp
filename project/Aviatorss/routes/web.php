@@ -345,6 +345,8 @@ Route::middleware(['auth', EnsureAllowedRoles::class])->group(function () {
 
     // Страница результатов соревнований
     Route::get('/competitions/results', [CompetitionController::class, 'results'])->name('competitions.results')->middleware(['auth', EnsureAllowedRoles::class]);
+    // До параметризованного маршрута — иначе «report» попадает в {competition} и даёт 404
+    Route::get('/competitions/results/report', [CompetitionController::class, 'resultsReport'])->name('competitions.results.report')->middleware(['auth', EnsureAllowedRoles::class . ':teacher']);
     Route::get('/competitions/results/{competition}', [CompetitionController::class, 'showResult'])->name('competitions.results.show')->middleware(['auth', EnsureAllowedRoles::class]);
 
     // Маршруты для тренировочных сессий
@@ -370,7 +372,6 @@ Route::middleware(['auth', EnsureAllowedRoles::class])->group(function () {
     // Явно определяем create перед параметризованным маршрутом, чтобы избежать конфликта
     Route::middleware(['auth', EnsureAllowedRoles::class . ':teacher'])->group(function () {
         Route::get('/competitions/create', [CompetitionController::class, 'create'])->name('competitions.create');
-        Route::get('/competitions/results/report', [CompetitionController::class, 'resultsReport'])->name('competitions.results.report');
         Route::get('/competitions/photo-archive', [CompetitionController::class, 'photoArchive'])->name('competitions.photo-archive');
         Route::delete('/competitions/photo-archive/{competitionImage}', [CompetitionController::class, 'destroyCompetitionPhoto'])->name('competitions.photo-archive.destroy');
         Route::get('/training-sessions/create', [TrainingSessionController::class, 'create'])->name('training-sessions.create');

@@ -287,6 +287,68 @@ class Competition extends Model
         return filled($name) ? collect([$name]) : collect();
     }
 
+    public static function sportCountLabelRu(int $count): string
+    {
+        $mod100 = $count % 100;
+        $mod10 = $count % 10;
+
+        if ($mod100 >= 11 && $mod100 <= 14) {
+            return 'видов спорта';
+        }
+
+        return match ($mod10) {
+            1 => 'вид спорта',
+            2, 3, 4 => 'вида спорта',
+            default => 'видов спорта',
+        };
+    }
+
+    /**
+     * Краткий текст вида спорта для списков соревнований.
+     */
+    public function sportListingText(): ?string
+    {
+        $names = $this->sportNamesForListing();
+        $count = $names->count();
+
+        if ($this->isPersonalCompetition()) {
+            if ($count === 0) {
+                return null;
+            }
+
+            if ($count === 1) {
+                return $names->first();
+            }
+
+            return $count.' '.self::sportCountLabelRu($count);
+        }
+
+        return $count > 0 ? $names->first() : null;
+    }
+
+    public function showParticipantsListLink(): bool
+    {
+        return $this->isPersonalCompetition() && $this->sportNamesForListing()->count() > 1;
+    }
+
+    /**
+     * @param  array<string, mixed>  $routeParams
+     */
+    public function participantsListUrl(array $routeParams = []): string
+    {
+        $params = array_merge(['competition' => $this], $routeParams);
+        $url = route('competitions.show', $params);
+
+        $user = auth()->user();
+        if ($user && $user->role === 'teacher') {
+            $separator = str_contains($url, '?') ? '&' : '?';
+
+            return $url.$separator.'tab=participants';
+        }
+
+        return $url.'#competition-participants';
+    }
+
     /**
      * Текст описания соревнования без HTML (для проверки, что поле не пустое).
      */

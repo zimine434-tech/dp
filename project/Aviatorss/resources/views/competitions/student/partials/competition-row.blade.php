@@ -5,17 +5,7 @@
         </a>
     </td>
     <td class="px-6 py-4 text-sm text-gray-700 hidden md:table-cell">
-        @php
-            $sportNames = $competition->sportNamesForListing();
-            $isPersonal = $competition->isPersonalCompetition();
-        @endphp
-        @if($sportNames->isNotEmpty())
-            {{ $sportNames->join(', ') }}
-        @elseif($isPersonal)
-            <span class="text-gray-500">Виды спорта появятся после формирования состава</span>
-        @else
-            —
-        @endif
+        @include('competitions.partials.listing-sport-cell', ['competition' => $competition])
     </td>
     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
         @if($competition->start_date && $competition->end_date)

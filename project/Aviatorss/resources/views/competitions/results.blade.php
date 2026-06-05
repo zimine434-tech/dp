@@ -499,13 +499,15 @@
                                             'competition' => $competition,
                                             'result' => $result,
                                             'showDetailLink' => true,
+                                            'linkNameToCompetitionShow' => true,
+                                            'competitionShowQuery' => ['from' => 'results'],
                                         ])
                                     @endforeach
                                 @else
                                     <tr class="competition-row results-listing-row" data-competition-id="{{ $competition->id }}">
                                         <td class="{{ $listingTd }}">
                                             <div class="font-semibold text-gray-900">
-                                                <a href="{{ route('competitions.results.show', $competition) }}" class="hover:text-blue-600 transition">
+                                                <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="hover:text-blue-600 transition">
                                                     {{ $competition->name }}
                                                 </a>
                                             </div>
@@ -535,7 +537,7 @@
                                         <td class="{{ $listingTdParticipant }} whitespace-nowrap">
                                             <div class="flex items-center min-h-[32px]">
                                                 <a
-                                                    href="{{ route('competitions.results.show', $competition) }}"
+                                                    href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
                                                     class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
                                                 >
                                                     Список участников
@@ -552,7 +554,7 @@
                                                     Добавить фотографии
                                                 </a>
                                                 <a
-                                                    href="{{ route('competitions.results.show', $competition) }}"
+                                                    href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
                                                     class="text-gray-700 hover:text-gray-900 px-3 py-1 rounded hover:bg-gray-100 transition"
                                                 >
                                                     Подробнее
@@ -571,6 +573,7 @@
                         'competitionsWithResults' => $ongoingWithResults,
                         'competitionsWithoutResults' => $ongoingWithoutResults,
                         'competitionShowQuery' => ['from' => 'results'],
+                        'linkNameToCompetitionShow' => true,
                     ])
                 </div>
 

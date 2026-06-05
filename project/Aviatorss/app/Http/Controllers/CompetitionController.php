@@ -95,7 +95,7 @@ class CompetitionController extends Controller
             }
         }
 
-        $query = Competition::with(['sport', 'team', 'location', 'creator', 'category']);
+        $query = Competition::with(['sport', 'team', 'location', 'creator', 'category', 'participants.team.sport']);
 
         if ($onlyMine) {
             $query->where('created_by', auth()->id());
@@ -1087,6 +1087,8 @@ class CompetitionController extends Controller
             'student_data' => 'required|string',
             'role' => 'nullable|in:student,teacher',
             'team_id' => 'nullable|exists:teams,id',
+        ], [
+            'student_data.required' => 'Выберите студента из списка.',
         ]);
 
         $studentData = json_decode($validated['student_data'], true);
@@ -2249,7 +2251,13 @@ class CompetitionController extends Controller
                 return $cmp;
             });
 
-            // Возвращаем только студентов. Для преподавателей есть отдельный поиск.
+            // По умолчанию возвращаем только студентов. Для преподавателей есть отдельный поиск.
+            // Если запрос приходит из searchTeachers — нужны все (фильтрует вызывающий метод).
+            $forTeachers = (bool) $request->input('_for_teachers', false);
+            if ($forTeachers) {
+                return response()->json(['students' => $students]);
+            }
+
             $onlyStudents = array_values(array_filter($students, fn ($row) => ($row['role'] ?? null) === 'student'));
 
             return response()->json(['students' => $onlyStudents]);
@@ -2280,8 +2288,12 @@ class CompetitionController extends Controller
             return response()->json(['teachers' => []]);
         }
 
-        // Переиспользуем ту же логику поиска, но возвращаем только role=teacher.
-        $result = $this->searchStudents($request, $competition);
+        // Переиспользуем ту же логику поиска, передавая флаг чтобы получить всех (не только студентов).
+        $cloned = $request->duplicate(
+            array_merge($request->query(), ['_for_teachers' => '1']),
+            $request->request->all()
+        );
+        $result = $this->searchStudents($cloned, $competition);
         $data = $result->getData(true);
         $rows = $data['students'] ?? [];
         $teachers = array_values(array_filter($rows, fn ($row) => ($row['role'] ?? null) === 'teacher'));
@@ -2312,6 +2324,8 @@ class CompetitionController extends Controller
 
         $validated = $request->validate([
             'student_data' => 'required|string',
+        ], [
+            'student_data.required' => 'Выберите преподавателя из списка.',
         ]);
 
         $teacherData = json_decode($validated['student_data'], true);
@@ -3303,7 +3317,10 @@ class CompetitionController extends Controller
         if (($competition->result_type ?? 'team') === 'personal') {
             $validated = $request->validate([
                 'results' => 'required|array',
-                'results.*' => 'nullable|string|max:45',
+                'results.*' => 'nullable|integer|min:1',
+            ], [
+                'results.*.integer' => 'Место должно быть целым числом.',
+                'results.*.min' => 'Место должно быть больше 0.',
             ]);
 
             $studentIds = $competition->participants
@@ -3314,7 +3331,7 @@ class CompetitionController extends Controller
 
             $saved = 0;
             foreach ($studentIds as $userId) {
-                $place = trim((string) ($validated['results'][(string) $userId] ?? ''));
+                $place = (string) ($validated['results'][$userId] ?? $validated['results'][(string) $userId] ?? '');
                 if ($place === '') {
                     CompetitionResult::query()
                         ->where('competitions_id', $competition->id)
@@ -3365,7 +3382,10 @@ class CompetitionController extends Controller
         }
 
         $validated = $request->validate([
-            'place' => 'required|string|max:45',
+            'place' => 'required|integer|min:1|max:45',
+        ], [
+            'place.integer' => 'Место должно быть целым числом.',
+            'place.min' => 'Место должно быть больше 0.',
         ]);
 
         $teamId = $competition->team_id;
@@ -3432,7 +3452,10 @@ class CompetitionController extends Controller
         }
 
         $validated = $request->validate([
-            'place' => 'required|string|max:45',
+            'place' => 'required|integer|min:1|max:45',
+        ], [
+            'place.integer' => 'Место должно быть целым числом.',
+            'place.min' => 'Место должно быть больше 0.',
         ]);
 
         $result->update($validated);

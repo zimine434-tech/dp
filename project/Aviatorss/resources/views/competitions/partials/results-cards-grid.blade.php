@@ -2,11 +2,13 @@
     'competitionsWithResults',
     'competitionsWithoutResults' => null,
     'competitionShowQuery' => ['from' => 'results'],
+    'linkNameToCompetitionShow' => false,
 ])
 
 @php
     $without = $competitionsWithoutResults ?? collect();
     $showQuery = $competitionShowQuery;
+    $linkNameToCompetitionShow = (bool) ($linkNameToCompetitionShow ?? false);
 @endphp
 
 <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
@@ -20,6 +22,7 @@
                     'competition' => $competition,
                     'result' => $result,
                     'competitionShowQuery' => $showQuery,
+                    'linkNameToCompetitionShow' => $linkNameToCompetitionShow,
                 ])
             </div>
         @endforeach
@@ -31,6 +34,7 @@
                 'competition' => $competition,
                 'result' => null,
                 'competitionShowQuery' => $showQuery,
+                'linkNameToCompetitionShow' => $linkNameToCompetitionShow,
             ])
         </div>
     @endforeach

@@ -21,15 +21,6 @@
     <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
         <div class="text-sm text-gray-500">
             @if(($competition->result_type ?? 'team') === 'personal')
-                {{ $participant->team?->name ?? '—' }}
-            @else
-                {{ $competition->team?->name ?? '—' }}
-            @endif
-        </div>
-    </td>
-    <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-        <div class="text-sm text-gray-500">
-            @if(($competition->result_type ?? 'team') === 'personal')
                 {{ $participant->team?->sport?->name ?? '—' }}
             @else
                 {{ $competition->team?->sport?->name ?? $competition->sport?->name ?? '—' }}

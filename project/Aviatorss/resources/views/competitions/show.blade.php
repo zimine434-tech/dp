@@ -7,6 +7,11 @@
     .results-listing-table tbody tr.results-listing-row:hover > td {
         background-color: #f9fafb;
     }
+
+    #participants-table-wrap:focus,
+    #participants-table-wrap:target {
+        outline: none;
+    }
 </style>
 @endpush
 
@@ -325,14 +330,13 @@
             @endif
 
             <p id="participants-empty" class="text-gray-500 {{ $competition->participants->count() > 0 ? 'hidden' : '' }}">Пока нет участников в этом соревновании.</p>
-            <div id="participants-table-wrap" class="overflow-x-auto {{ $competition->participants->count() > 0 ? '' : 'hidden' }}">
+            <div id="participants-table-wrap" class="overflow-x-auto outline-none {{ $competition->participants->count() > 0 ? '' : 'hidden' }}">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Фамилия</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Имя</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Группа</th>
-                            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Команда</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вид спорта</th>
                             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Роль</th>
                             <th class="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
@@ -358,6 +362,15 @@
 
         <div id="competition-teacher-block" class="bg-white rounded-lg shadow-md p-6 mt-6">
             @include('competitions.partials.teacher-block', ['competition' => $competition])
+
+            @if(session('teacher_error'))
+                <div class="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+                    <p class="text-sm text-red-700">{{ session('teacher_error') }}</p>
+                </div>
+            @endif
+            <div id="teacher-inline-error" class="hidden mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+                <p id="teacher-inline-error-text" class="text-sm text-red-700"></p>
+            </div>
 
             @if($competition->status === 'upcoming')
                 <div id="assign-teacher-form" class="hidden mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 overflow-visible">
@@ -958,6 +971,12 @@
                         e.preventDefault();
                         setParticipantsError('');
 
+                        var studentDataVal = (document.getElementById('student_data') || {}).value || '';
+                        if (!studentDataVal) {
+                            setParticipantsError('Выберите студента из списка.');
+                            return;
+                        }
+
                         var btn = addForm.querySelector('button[type="submit"]');
                         if (btn) {
                             btn.disabled = true;
@@ -992,7 +1011,7 @@
                                     if (teamSel) teamSel.value = '';
                                     setParticipantsError('');
                                 } else {
-                                    var msg = (res.data && (res.data.message || (res.data.errors ? Object.values(res.data.errors)[0][0] : null))) || 'Не удалось добавить участника.';
+                                    var msg = (res.data && (res.data.message || (res.data.errors ? Object.values(res.data.errors).flat()[0] : null))) || 'Не удалось добавить участника.';
                                     setParticipantsError(msg);
                                 }
                             })
@@ -1008,11 +1027,31 @@
                     });
                 }
 
+                function setTeacherError(text) {
+                    var box = document.getElementById('teacher-inline-error');
+                    var txt = document.getElementById('teacher-inline-error-text');
+                    if (!box || !txt) return;
+                    var msg = String(text || '').trim();
+                    if (!msg) {
+                        txt.textContent = '';
+                        box.classList.add('hidden');
+                        return;
+                    }
+                    txt.textContent = msg;
+                    box.classList.remove('hidden');
+                }
+
                 var teacherForm = document.getElementById('assign-teacher-submit-form');
                 if (teacherForm) {
                     teacherForm.addEventListener('submit', function (e) {
                         e.preventDefault();
-                        setParticipantsError('');
+                        setTeacherError('');
+
+                        var teacherDataVal = (document.getElementById('teacher_data') || {}).value || '';
+                        if (!teacherDataVal) {
+                            setTeacherError('Выберите преподавателя из списка.');
+                            return;
+                        }
 
                         var btn = teacherForm.querySelector('button[type="submit"]');
                         if (btn) {
@@ -1040,14 +1079,14 @@
                                     if (hidden) hidden.value = '';
                                     var text = document.getElementById('teacher-select-text');
                                     if (text) text.textContent = 'Начните вводить ФИО преподавателя';
-                                    setParticipantsError('');
+                                    setTeacherError('');
                                 } else {
-                                    var msg = (res.data && (res.data.message || (res.data.errors ? Object.values(res.data.errors)[0][0] : null))) || 'Не удалось назначить преподавателя.';
-                                    setParticipantsError(msg);
+                                    var msg = (res.data && (res.data.message || (res.data.errors ? Object.values(res.data.errors).flat()[0] : null))) || 'Не удалось назначить преподавателя.';
+                                    setTeacherError(msg);
                                 }
                             })
                             .catch(function () {
-                                setParticipantsError('Не удалось назначить преподавателя.');
+                                setTeacherError('Не удалось назначить преподавателя.');
                             })
                             .finally(function () {
                                 if (btn) {
@@ -1615,6 +1654,22 @@
             }
 
             document.addEventListener('DOMContentLoaded', function () {
+                var params = new URLSearchParams(window.location.search);
+                var hash = (window.location.hash || '').replace(/^#/, '');
+                var tabFromUrl = params.get('tab');
+
+                if (tabFromUrl === 'participants' || hash === 'participants' || hash === 'participants-table-wrap') {
+                    switchCompetitionTeacherTab('participants');
+                    window.setTimeout(function () {
+                        var target = document.getElementById('participants-table-wrap');
+                        if (target) {
+                            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 50);
+
+                    return;
+                }
+
                 var tabKey = 'competitionTeacherTab:{{ $competition->id }}';
                 var savedTab = null;
                 try {
@@ -2007,6 +2062,19 @@
                         Личное соревнование: место указывается для каждого студента отдельно.
                     </div>
 
+                    @php
+                        $resultPlaceErrors = collect($errors->getMessages())
+                            ->filter(fn ($messages, $key) => $key === 'results' || str_starts_with((string) $key, 'results.'))
+                            ->flatten();
+                    @endphp
+                    @if($resultPlaceErrors->isNotEmpty())
+                        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            @foreach($resultPlaceErrors as $message)
+                                <p>{{ $message }}</p>
+                            @endforeach
+                        </div>
+                    @endif
+
                     <form
                         id="personal-results-form"
                         action="{{ route('competitions.results.store', $competition) }}"
@@ -2037,11 +2105,12 @@
                                             <td class="px-3 py-3 text-sm text-gray-900">{{ $p->team?->sport?->name ?? '—' }}</td>
                                             <td class="px-3 py-3">
                                                 <input
-                                                    type="text"
+                                                    type="number"
                                                     name="results[{{ $uid }}]"
                                                     value="{{ old('results.'.$uid, $r?->place ?? '') }}"
-                                                    maxlength="45"
-                                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                    min="1"
+                                                    step="1"
+                                                    class="personal-result-place-input w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                                     placeholder="Например: 1"
                                                 >
                                             </td>
@@ -2880,6 +2949,40 @@
             
             dropdown.classList.add('hidden');
         }
+
+        document.querySelectorAll('.personal-result-place-input').forEach(function (input) {
+            input.addEventListener('input', function () {
+                const value = String(input.value || '').trim();
+                if (value !== '' && Number(value) <= 0) {
+                    input.value = '';
+                }
+                input.setCustomValidity('');
+            });
+        });
+
+        document.getElementById('personal-results-form')?.addEventListener('submit', function (e) {
+            let blocked = false;
+
+            this.querySelectorAll('.personal-result-place-input').forEach(function (input) {
+                const value = String(input.value || '').trim();
+                if (value !== '' && Number(value) <= 0) {
+                    input.setCustomValidity('Место должно быть больше 0.');
+                    if (!blocked) {
+                        input.reportValidity();
+                        blocked = true;
+                    }
+                } else {
+                    input.setCustomValidity('');
+                }
+            });
+
+            if (blocked || !this.checkValidity()) {
+                e.preventDefault();
+                if (!blocked) {
+                    this.reportValidity();
+                }
+            }
+        });
 
         // Обработка формы добавления результата
         document.getElementById('add-result-form-submit')?.addEventListener('submit', async function(e) {

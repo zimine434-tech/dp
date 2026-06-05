@@ -323,10 +323,13 @@
                                             </a>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                                        @if($competition->sport && ($competition->result_type ?? 'team') !== 'personal')
-                                            <div class="text-sm text-gray-900">{{ $competition->sport->name }}</div>
-                                        @endif
+                                    <td class="px-6 py-4 hidden md:table-cell">
+                                        <div class="text-sm text-gray-900">
+                                            @include('competitions.partials.listing-sport-cell', [
+                                                'competition' => $competition,
+                                                'showRouteParams' => $competitionShowParams($competition),
+                                            ])
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                                         <div class="text-sm text-gray-900">{{ $competition->category?->name_category ?? 'Не указана' }}</div>
@@ -390,9 +393,13 @@
                                         {{ $competition->name }}
                                     </a>
                                 </h2>
-                                @if($competition->sport && ($competition->result_type ?? 'team') !== 'personal')
-                                    <p class="text-sm text-gray-600">{{ $competition->sport->name }}</p>
-                                @endif
+                                <p class="text-sm text-gray-600">
+                                    @include('competitions.partials.listing-sport-cell', [
+                                        'competition' => $competition,
+                                        'showRouteParams' => $competitionShowParams($competition),
+                                        'emptyTeamLabel' => 'Не указан',
+                                    ])
+                                </p>
                                 <p class="text-sm text-gray-600">
                                     <span class="text-gray-500">Категория:</span>
                                     {{ $competition->category?->name_category ?? 'Не указана' }}

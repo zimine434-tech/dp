@@ -10,6 +10,14 @@
     $participantName = ($result && $competition->isPersonalCompetition())
         ? \App\Support\CompetitionResultPage::formatResultParticipantName($competition, $result)
         : null;
+    $competitionShowQuery = $competitionShowQuery ?? ['from' => 'results'];
+    $linkToCompetitionShow = ! empty($linkNameToCompetitionShow);
+    $competitionNameHref = $linkToCompetitionShow
+        ? route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery))
+        : route('competitions.results.show', $competition);
+    $detailHref = $linkToCompetitionShow
+        ? route('competitions.show', array_merge(['competition' => $competition], $competitionShowQuery))
+        : route('competitions.results.show', $competition);
 @endphp
 <article
     class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-md transition hover:shadow-lg"
@@ -18,7 +26,7 @@
     <div class="flex min-h-0 flex-1 flex-col p-5">
         <div class="mb-2 flex items-start justify-between gap-3">
             <h3 class="min-w-0 flex-1 text-lg font-semibold leading-snug text-gray-900">
-                <a href="{{ route('competitions.results.show', $competition) }}" class="transition hover:text-blue-600">
+                <a href="{{ $competitionNameHref }}" class="transition hover:text-blue-600">
                     {{ $competition->name }}
                 </a>
             </h3>
@@ -102,7 +110,7 @@
                 </a>
             @endif
             <a
-                href="{{ route('competitions.results.show', $competition) }}"
+                href="{{ $detailHref }}"
                 class="block rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-700"
             >
                 Подробнее

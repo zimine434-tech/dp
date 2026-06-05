@@ -248,7 +248,7 @@
         @endif
 
         <!-- Участники -->
-        <div class="bg-white rounded-lg shadow-md p-6">
+        <div id="competition-participants" class="bg-white rounded-lg shadow-md p-6 outline-none">
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h2 class="text-xl font-semibold text-gray-800">
                         @if($count > 0)
