@@ -974,7 +974,7 @@
                 const requestSearchTerm = search;
                 currentStudentSearchRequest = xhr;
                 
-                const url = '{{ route("teams.search-students", $team) }}?search=' + encodeURIComponent(search);
+                const url = '{{ route("teams.search-students", $team, false) }}?search=' + encodeURIComponent(search);
                 
                 xhr.open('GET', url, true);
                 xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');

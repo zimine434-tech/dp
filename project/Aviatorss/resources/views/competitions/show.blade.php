@@ -2398,7 +2398,7 @@
                 const requestSearchTerm = search;
                 currentSearchRequest = xhr;
                 
-                const url = '{{ route("competitions.search-students", $competition) }}?search=' + encodeURIComponent(search);
+                const url = '{{ route("competitions.search-students", $competition, false) }}?search=' + encodeURIComponent(search);
                 
                 xhr.open('GET', url, true);
                 xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -2501,7 +2501,7 @@
                 const xhr = new XMLHttpRequest();
                 const requestSearchTerm = search;
                 currentTeacherSearchRequest = xhr;
-                const url = '{{ route("competitions.search-teachers", $competition) }}?search=' + encodeURIComponent(search);
+                const url = '{{ route("competitions.search-teachers", $competition, false) }}?search=' + encodeURIComponent(search);
 
                 xhr.open('GET', url, true);
                 xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
