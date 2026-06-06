@@ -130,18 +130,66 @@ class IrkatScheduleDomParser
         $shot->setNodeBinary($nodeBinary);
         $shot->setNpmBinary($npmBinary);
 
-        $chromePath = $this->firstExecutable([
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/google-chrome',
-        ]);
+        $chromePath = $this->resolveChromePath();
 
         if ($chromePath !== null) {
             $shot->setChromePath($chromePath);
         }
 
         return $shot;
+    }
+
+    private function resolveChromePath(): ?string
+    {
+        $fromEnv = getenv('PUPPETEER_EXECUTABLE_PATH');
+        if (is_string($fromEnv) && $fromEnv !== '' && is_executable($fromEnv)) {
+            return $fromEnv;
+        }
+
+        $systemChrome = $this->firstExecutable([
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+        ]);
+
+        if ($systemChrome !== null) {
+            return $systemChrome;
+        }
+
+        return $this->resolvePuppeteerChromeFromCache();
+    }
+
+    private function resolvePuppeteerChromeFromCache(): ?string
+    {
+        $cacheRoots = array_values(array_unique(array_filter([
+            getenv('PUPPETEER_CACHE_DIR') ?: null,
+            (getenv('HOME') ?: '/tmp') . '/.cache/puppeteer',
+            '/tmp/puppeteer-cache',
+        ])));
+
+        foreach ($cacheRoots as $cacheDir) {
+            if (! is_dir($cacheDir)) {
+                continue;
+            }
+
+            $patterns = [
+                $cacheDir . '/chrome-headless-shell/linux-*/chrome-headless-shell',
+                $cacheDir . '/chrome/linux-*/chrome-linux64/chrome',
+                $cacheDir . '/chrome/linux-*/chrome',
+            ];
+
+            foreach ($patterns as $pattern) {
+                $matches = glob($pattern) ?: [];
+                foreach ($matches as $path) {
+                    if (is_executable($path)) {
+                        return $path;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
