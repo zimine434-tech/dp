@@ -1,8 +1,10 @@
 <tr class="hover:bg-gray-50">
-    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-        <a href="{{ route('competitions.show', $competition) }}" class="hover:text-blue-600 transition">
-            {{ $competition->name }}
-        </a>
+    <td class="px-6 py-4 align-top max-w-md">
+        @include('competitions.partials.listing-name-link', [
+            'competition' => $competition,
+            'href' => route('competitions.show', $competition),
+            'linkClass' => 'text-gray-900 hover:text-blue-600 transition',
+        ])
     </td>
     <td class="px-6 py-4 text-sm text-gray-700 hidden md:table-cell">
         @include('competitions.partials.listing-sport-cell', ['competition' => $competition])

@@ -48,7 +48,7 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 w-[38%] min-w-[10rem] max-w-md">
                                     @include('competitions.student.partials.table-sort-header', [
                                         'listingRoute' => $listingRoute,
                                         'baseListingParams' => $baseWithFilter,

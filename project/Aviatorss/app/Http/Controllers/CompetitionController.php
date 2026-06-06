@@ -2723,6 +2723,14 @@ class CompetitionController extends Controller
      */
     public function generateOrder1(Request $request, Competition $competition)
     {
+        if (! $request->filled('accompanying_teacher')) {
+            $competition->loadMissing('teacher');
+            $responsibleTeacherId = $competition->teacher?->user_id;
+            if ($responsibleTeacherId) {
+                $request->merge(['accompanying_teacher' => $responsibleTeacherId]);
+            }
+        }
+
         $validated = $request->validate([
             'order_date' => 'required|date',
             'accompanying_teacher' => 'required|exists:users,id',

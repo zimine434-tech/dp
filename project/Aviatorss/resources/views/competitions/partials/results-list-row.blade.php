@@ -30,11 +30,13 @@
     data-name="{{ mb_strtolower($competition->name) }}"
     @if(!empty($rowGroup)) data-group="{{ $rowGroup }}" @endif
 >
-    <td class="{{ $listingTd }}">
+    <td class="{{ $listingTd }} max-w-md">
         <div class="font-semibold text-gray-900">
-            <a href="{{ $competitionNameHref }}" class="hover:text-blue-600 transition">
-                {{ $competition->name }}
-            </a>
+            @include('competitions.partials.listing-name-link', [
+                'competition' => $competition,
+                'href' => $competitionNameHref,
+                'linkClass' => 'text-gray-900 hover:text-blue-600 transition',
+            ])
         </div>
         <div class="text-sm text-gray-500 mt-1 lg:hidden">
             @if($isPersonalRow)

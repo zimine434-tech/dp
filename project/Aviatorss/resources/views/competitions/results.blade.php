@@ -348,11 +348,13 @@
                                     data-sport-id="{{ $sportIdForCompetition ?? '' }}"
                                     data-name="{{ mb_strtolower($competition->name) }}"
                                 >
-                                    <td class="{{ $listingTd }}">
+                                    <td class="{{ $listingTd }} max-w-md">
                                         <div class="font-semibold text-gray-900">
-                                            <a href="{{ route('competitions.results.show', $competition) }}" class="hover:text-blue-600 transition">
-                                                {{ $competition->name }}
-                                            </a>
+                                            @include('competitions.partials.listing-name-link', [
+                                                'competition' => $competition,
+                                                'href' => route('competitions.results.show', $competition),
+                                                'linkClass' => 'text-gray-900 hover:text-blue-600 transition',
+                                            ])
                                         </div>
                                         <div class="text-sm text-gray-500 mt-1 lg:hidden">
                                             {{ $sportNameForCompetition }} • {{ $competition->resultFormatLabel() }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}

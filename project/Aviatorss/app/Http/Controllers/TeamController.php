@@ -256,6 +256,8 @@ class TeamController extends Controller
         $validated = $request->validate([
             'student_data' => 'required|string',
             'type_user' => 'nullable|in:coach,capitan,member',
+        ], [
+            'student_data.required' => 'Выберите студента из списка.',
         ]);
 
         $studentData = json_decode($validated['student_data'], true);

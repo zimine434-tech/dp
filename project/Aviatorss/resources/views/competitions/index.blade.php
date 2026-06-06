@@ -281,7 +281,7 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[38%] min-w-[10rem] max-w-md">
                                         @include('competitions.student.partials.table-sort-header', [
                                             'listingRoute' => $teacherListingRoute,
                                             'baseListingParams' => $teacherBaseListingParams,
@@ -316,12 +316,11 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($competitions as $competition)
                                 <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">
-                                            <a href="{{ route('competitions.show', $competitionShowParams($competition)) }}" class="text-blue-600 hover:text-blue-800">
-                                                {{ $competition->name }}
-                                            </a>
-                                        </div>
+                                    <td class="px-6 py-4 align-top max-w-md">
+                                        @include('competitions.partials.listing-name-link', [
+                                            'competition' => $competition,
+                                            'href' => route('competitions.show', $competitionShowParams($competition)),
+                                        ])
                                     </td>
                                     <td class="px-6 py-4 hidden md:table-cell">
                                         <div class="text-sm text-gray-900">
@@ -389,9 +388,11 @@
                         <article class="flex flex-col rounded-lg border border-gray-200 bg-white p-5 shadow-md transition hover:border-gray-300 hover:shadow-lg">
                             <div class="flex flex-1 flex-col gap-3">
                                 <h2 class="text-base font-semibold leading-snug text-gray-900">
-                                    <a href="{{ route('competitions.show', $competitionShowParams($competition)) }}" class="text-blue-600 hover:text-blue-800">
-                                        {{ $competition->name }}
-                                    </a>
+                                    @include('competitions.partials.listing-name-link', [
+                                        'competition' => $competition,
+                                        'href' => route('competitions.show', $competitionShowParams($competition)),
+                                        'linkClass' => 'text-blue-600 hover:text-blue-800',
+                                    ])
                                 </h2>
                                 <p class="text-sm text-gray-600">
                                     @include('competitions.partials.listing-sport-cell', [

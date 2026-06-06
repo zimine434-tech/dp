@@ -360,7 +360,18 @@
             </div>
         </div>
 
-        <div id="competition-teacher-block" class="bg-white rounded-lg shadow-md p-6 mt-6">
+        @php
+            $responsibleTeacherUser = $competition->teacher?->user;
+            $responsibleTeacherLabel = $responsibleTeacherUser
+                ? trim($responsibleTeacherUser->lastname.' '.$responsibleTeacherUser->firstname.' '.($responsibleTeacherUser->patronymic ?? ''))
+                : '';
+        @endphp
+        <div
+            id="competition-teacher-block"
+            class="bg-white rounded-lg shadow-md p-6 mt-6"
+            data-teacher-id="{{ $responsibleTeacherUser?->id ?? '' }}"
+            data-teacher-label="{{ e($responsibleTeacherLabel) }}"
+        >
             @include('competitions.partials.teacher-block', ['competition' => $competition])
 
             @if(session('teacher_error'))
@@ -826,28 +837,49 @@
                     }
                 }
 
+                window.syncResponsibleTeacherOrderFields = function (teacherId, teacherLabel) {
+                    var block = document.getElementById('competition-teacher-block');
+                    var id = teacherId != null && String(teacherId).trim() !== ''
+                        ? String(teacherId)
+                        : (block && block.dataset.teacherId ? String(block.dataset.teacherId) : '');
+                    var label = teacherLabel != null && String(teacherLabel).trim() !== ''
+                        ? String(teacherLabel)
+                        : (block && block.dataset.teacherLabel ? String(block.dataset.teacherLabel) : '');
+
+                    if (block) {
+                        if (id) block.dataset.teacherId = id;
+                        if (label) block.dataset.teacherLabel = label;
+                    }
+
+                    if (id) {
+                        var input1 = document.getElementById('accompanying_teacher');
+                        if (input1) input1.value = id;
+                        var input2 = document.getElementById('teacher_participant_2');
+                        if (input2) input2.value = id;
+                    }
+
+                    if (label) {
+                        document.querySelectorAll('[data-responsible-teacher-label]').forEach(function (el) {
+                            el.textContent = label;
+                        });
+                    }
+                };
+
                 window.competitionOnParticipantAdded = function (data) {
                     if (!data || !data.ok) return;
 
                     if (data.teacher_html) {
-                        var teacherBox = document.getElementById('competition-teacher-block');
-                        if (teacherBox) {
-                            teacherBox.innerHTML = data.teacher_html;
+                        var teacherDisplay = document.getElementById('competition-teacher-display');
+                        if (teacherDisplay) {
+                            var tmp = document.createElement('div');
+                            tmp.innerHTML = data.teacher_html.trim();
+                            var newDisplay = tmp.querySelector('#competition-teacher-display') || tmp.firstElementChild;
+                            if (newDisplay) {
+                                teacherDisplay.replaceWith(newDisplay);
+                            }
                         }
 
-                        // Sync dependent teacher fields (orders etc.)
-                        if (data.teacher_id) {
-                            var input1 = document.getElementById('accompanying_teacher');
-                            if (input1) input1.value = String(data.teacher_id);
-                            var input2 = document.getElementById('teacher_participant_2');
-                            if (input2) input2.value = String(data.teacher_id);
-                        }
-
-                        if (data.teacher_label) {
-                            // optional: update visible text blocks inside orders forms if present
-                            var blocks = document.querySelectorAll('[data-responsible-teacher-label]');
-                            blocks.forEach(function (el) { el.textContent = String(data.teacher_label); });
-                        }
+                        window.syncResponsibleTeacherOrderFields(data.teacher_id, data.teacher_label);
                         return;
                     }
 
@@ -1073,6 +1105,9 @@
                             .then(function (res) {
                                 if (res.ok && res.data && res.data.ok) {
                                     window.competitionOnParticipantAdded(res.data);
+                                    if (typeof window.syncResponsibleTeacherOrderFields === 'function') {
+                                        window.syncResponsibleTeacherOrderFields(res.data.teacher_id, res.data.teacher_label);
+                                    }
                                     var box = document.getElementById('assign-teacher-form');
                                     if (box) box.classList.add('hidden');
                                     var hidden = document.getElementById('teacher_data');
@@ -2800,6 +2835,10 @@
             // Если передан 0, просто скрываем все формы
             if (orderNumber === 0) {
                 return;
+            }
+
+            if ((orderNumber === 1 || orderNumber === 2) && typeof window.syncResponsibleTeacherOrderFields === 'function') {
+                window.syncResponsibleTeacherOrderFields();
             }
             
             // Показываем нужную форму
