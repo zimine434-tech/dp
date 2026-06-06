@@ -2213,22 +2213,6 @@ class CompetitionController extends Controller
                     $groupName = 'Преподаватели';
                 }
                 
-                // Логируем информацию о группе для отладки
-                \Log::info('LDAP Group Resolution', [
-                    'search' => $search,
-                    'login' => $login,
-                    'lastname' => $lastname,
-                    'firstname' => $firstname,
-                    'dn' => $dn,
-                    'cn' => $cn,
-                    'role' => $role,
-                    'resolveGroupName_result' => $resolveGroupNameResult,
-                    'extractGroupFromDnResult' => $extractGroupFromDnResult,
-                    'final_group_name' => $groupName,
-                    'ldap_group_attribute' => env('LDAP_GROUP_NAME_ATTRIBUTE', ''),
-                    'all_attributes' => $ldapUser->getAttributes(),
-                ]);
-
                 $students[] = [
                     'id' => $user ? $user->id : null,
                     'lastname' => $lastname,
@@ -2534,7 +2518,7 @@ class CompetitionController extends Controller
 
     private function getAllowedOus(): array
     {
-        $value = env('LDAP_ALLOWED_OUS', 'Студенты|ДО|ДПО|ОТМ|ПО');
+        $value = config('ldap.allowed_ous', 'Студенты|ДО|ДПО|ОТМ|ПО');
         if (!$value) {
             return [];
         }
@@ -2725,7 +2709,7 @@ class CompetitionController extends Controller
 
     private function resolveGroupName(LdapUser $user): ?string
     {
-        $groupAttribute = env('LDAP_GROUP_NAME_ATTRIBUTE', '');
+        $groupAttribute = config('ldap.group_name_attribute', '');
         if (empty($groupAttribute)) {
             return null;
         }

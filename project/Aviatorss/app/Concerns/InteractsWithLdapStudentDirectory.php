@@ -189,7 +189,7 @@ trait InteractsWithLdapStudentDirectory
 
     protected function getAllowedOus(): array
     {
-        $value = env('LDAP_ALLOWED_OUS', 'Студенты|ДО|ДПО|ОТМ|ПО');
+        $value = config('ldap.allowed_ous', 'Студенты|ДО|ДПО|ОТМ|ПО');
         if (! $value) {
             return [];
         }
@@ -323,7 +323,7 @@ trait InteractsWithLdapStudentDirectory
 
     protected function resolveGroupName(LdapUser $user): ?string
     {
-        $groupAttribute = env('LDAP_GROUP_NAME_ATTRIBUTE', '');
+        $groupAttribute = config('ldap.group_name_attribute', '');
         if (empty($groupAttribute)) {
             return null;
         }
@@ -335,12 +335,12 @@ trait InteractsWithLdapStudentDirectory
 
     protected function studentsBaseDn(): string
     {
-        $configured = env('LDAP_STUDENTS_BASE_DN');
+        $configured = config('ldap.students_base_dn');
         if (is_string($configured) && $configured !== '') {
             return $configured;
         }
 
-        $base = env('LDAP_BASE_DN', 'DC=iat,DC=iat');
+        $base = config('ldap.connections.default.base_dn', 'DC=iat,DC=iat');
 
         return 'OU=Студенты,'.$base;
     }

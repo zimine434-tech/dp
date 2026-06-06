@@ -78,4 +78,12 @@ return [
         'driver' => env('CACHE_DRIVER', 'file'),
     ],
 
+    'allowed_ous' => env('LDAP_ALLOWED_OUS', 'Студенты|ДО|ДПО|ОТМ|ПО'),
+
+    'students_base_dn' => env('LDAP_STUDENTS_BASE_DN'),
+
+    'group_name_attribute' => env('LDAP_GROUP_NAME_ATTRIBUTE', ''),
+
+    'allowed_groups' => env('LDAP_ALLOWED_GROUPS', 'Преподаватели,teachers,Студенты,students'),
+
 ];

@@ -126,11 +126,12 @@ class AuthController extends Controller
     private function attemptLdapAuth(string $username, string $password, ?string &$errorMessage = null): ?array
     {
         try {
+            $ldap = config('ldap.connections.default');
             $connection = new Connection([
-                'hosts' => [env('LDAP_HOST')],
-                'base_dn' => env('LDAP_BASE_DN'),
-                'username' => env('LDAP_USERNAME'),
-                'password' => env('LDAP_PASSWORD'),
+                'hosts' => $ldap['hosts'],
+                'base_dn' => $ldap['base_dn'],
+                'username' => $ldap['username'],
+                'password' => $ldap['password'],
             ]);
 
             $connection->connect();
@@ -354,7 +355,7 @@ class AuthController extends Controller
 
     private function resolveGroupName(LdapUser $user): ?string
     {
-        $groupAttribute = env('LDAP_GROUP_NAME_ATTRIBUTE', '');
+        $groupAttribute = config('ldap.group_name_attribute', '');
 
         if ($groupAttribute) {
             $value = $user->getFirstAttribute($groupAttribute);
@@ -595,7 +596,7 @@ class AuthController extends Controller
     private function getAllowedGroups(): array
     {
         // По умолчанию разрешены преподаватели (Преподаватели/teachers) и студенты (Студенты/students)
-        $value = env('LDAP_ALLOWED_GROUPS', 'Преподаватели,teachers,Студенты,students');
+        $value = config('ldap.allowed_groups', 'Преподаватели,teachers,Студенты,students');
 
         if ($value === null || $value === '') {
             return [];
