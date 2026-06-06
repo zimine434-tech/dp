@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class StudentController extends Controller
@@ -232,15 +233,21 @@ class StudentController extends Controller
                 $needsSync = ! $syncedAt || now()->diffInDays($syncedAt) >= 30 || ScheduleGroup::query()->count() === 0;
 
                 if ($needsSync) {
-                    $map = $parser->parseGroupMap();
-                    foreach ($map as $name => $remoteId) {
-                        ScheduleGroup::updateOrCreate(
-                            ['name' => $name],
-                            ['remote_id' => $remoteId, 'course' => null]
-                        );
-                    }
+                    try {
+                        $map = $parser->parseGroupMap();
+                        foreach ($map as $name => $remoteId) {
+                            ScheduleGroup::updateOrCreate(
+                                ['name' => $name],
+                                ['remote_id' => $remoteId, 'course' => null]
+                            );
+                        }
 
-                    Cache::put('irkat_schedule:groups_synced_at', now(), now()->addDays(31));
+                        Cache::put('irkat_schedule:groups_synced_at', now(), now()->addDays(31));
+                    } catch (\Throwable $e) {
+                        Log::warning('Не удалось синхронизировать группы schedule.irkat.ru', [
+                            'message' => $e->getMessage(),
+                        ]);
+                    }
                 }
             } finally {
                 optional($lock)->release();

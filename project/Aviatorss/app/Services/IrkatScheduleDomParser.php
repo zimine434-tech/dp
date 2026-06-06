@@ -13,10 +13,7 @@ class IrkatScheduleDomParser
      */
     public function parseGroupMap(): array
     {
-        $html = Browsershot::url('https://schedule.irkat.ru/')
-            ->setNodeBinary('node')
-            ->setNpmBinary('npm')
-            ->waitUntilNetworkIdle()
+        $html = $this->browsershot('https://schedule.irkat.ru/')
             ->timeout(60)
             ->bodyHtml();
 
@@ -64,10 +61,7 @@ class IrkatScheduleDomParser
         $url = 'https://schedule.irkat.ru/?group=' . urlencode((string) $groupId) . '&date=' . urlencode($dateYmd);
 
         // We must render the SPA, then read the DOM (table headers + cells).
-        $json = Browsershot::url($url)
-            ->setNodeBinary('node')
-            ->setNpmBinary('npm')
-            ->waitUntilNetworkIdle()
+        $json = $this->browsershot($url)
             ->timeout(90)
             ->evaluate(<<<'JS'
                 JSON.stringify((() => {
@@ -116,5 +110,54 @@ class IrkatScheduleDomParser
 
         return $data;
     }
-}
 
+    private function browsershot(string $url): Browsershot
+    {
+        $shot = Browsershot::url($url)
+            ->noSandbox()
+            ->waitUntilNetworkIdle();
+
+        $nodeBinary = $this->firstExecutable([
+            '/usr/bin/node',
+            '/usr/local/bin/node',
+        ]) ?? 'node';
+
+        $npmBinary = $this->firstExecutable([
+            '/usr/bin/npm',
+            '/usr/local/bin/npm',
+        ]) ?? 'npm';
+
+        $shot->setNodeBinary($nodeBinary);
+        $shot->setNpmBinary($npmBinary);
+
+        $chromePath = $this->firstExecutable([
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+        ]);
+
+        if ($chromePath !== null) {
+            $shot->setChromePath($chromePath);
+        }
+
+        return $shot;
+    }
+
+    /**
+     * @param  list<string|null>  $candidates
+     */
+    private function firstExecutable(array $candidates): ?string
+    {
+        foreach ($candidates as $path) {
+            if (! is_string($path) || $path === '') {
+                continue;
+            }
+            if (is_executable($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+}
