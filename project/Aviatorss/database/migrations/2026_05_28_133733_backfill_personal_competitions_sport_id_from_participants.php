@@ -33,4 +33,3 @@ return new class extends Migration
         // No safe rollback: we can't distinguish backfilled vs user-provided sport_id.
     }
 };
-
