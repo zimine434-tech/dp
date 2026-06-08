@@ -1,7 +1,8 @@
 @php
     /** @var \App\Models\Competition $competition */
-    /** @var \App\Models\CompetitionResult $result */
-    $isPersonalRow = \App\Support\CompetitionResultPage::isPersonalResultListing($competition, $result);
+    /** @var \App\Models\CompetitionResult|null $result */
+    $hasResult = $result !== null;
+    $isPersonalRow = $hasResult && \App\Support\CompetitionResultPage::isPersonalResultListing($competition, $result);
     $sportUserId = $isPersonalRow && $result->user_id ? (int) $result->user_id : null;
     $sportName = \App\Support\CompetitionResultPage::resolveSportNameForUser($competition, $sportUserId);
     $sportId = \App\Support\CompetitionResultPage::resolveSportIdForUser($competition, $sportUserId);
@@ -63,14 +64,20 @@
     ])
 
     <td class="{{ $listingTd }}">
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-            @if(is_numeric($result->place) && (int) $result->place === 1) bg-yellow-100 text-yellow-800
-            @elseif(is_numeric($result->place) && (int) $result->place === 2) bg-gray-200 text-gray-800
-            @elseif(is_numeric($result->place) && (int) $result->place === 3) bg-orange-100 text-orange-800
-            @else bg-blue-100 text-blue-800
-            @endif">
-            {{ $result->place }}
-        </span>
+        @if($hasResult)
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                @if(is_numeric($result->place) && (int) $result->place === 1) bg-yellow-100 text-yellow-800
+                @elseif(is_numeric($result->place) && (int) $result->place === 2) bg-gray-200 text-gray-800
+                @elseif(is_numeric($result->place) && (int) $result->place === 3) bg-orange-100 text-orange-800
+                @else bg-blue-100 text-blue-800
+                @endif">
+                {{ $result->place }}
+            </span>
+        @else
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                Нет места
+            </span>
+        @endif
     </td>
 
     <td class="{{ $listingTdParticipant }}">
@@ -91,7 +98,7 @@
     @if(auth()->user()->role === 'teacher')
         <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium align-top border-b border-gray-300">
             <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
-                @if(!empty($showAddResultAction))
+                @if(!empty($showAddResultAction) || ! $hasResult)
                     @include('competitions.partials.add-result-action', ['competition' => $competition])
                 @endif
                 <a

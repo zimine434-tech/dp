@@ -69,11 +69,17 @@
                 @endif
             </div>
 
-            @if($teamResult && ! $isPersonalCompetition)
+            @if(! $isPersonalCompetition)
                 <div>
                     <label class="mb-1 block text-sm font-medium text-gray-500">Место команды</label>
                     <div class="mt-1">
-                        @include('partials.competition-place-badge', ['place' => $teamResult->place])
+                        @if($teamResult)
+                            @include('partials.competition-place-badge', ['place' => $teamResult->place])
+                        @else
+                            <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
+                                Нет места
+                            </span>
+                        @endif
                     </div>
                 </div>
             @endif
@@ -160,4 +166,21 @@
             <p class="text-gray-500">Пока нет участников в этом соревновании.</p>
         @endif
     </div>
+
+    @php
+        $hasPublishedResults = $competition->results
+            ->contains(fn ($r) => filled(trim((string) ($r->place ?? ''))));
+    @endphp
+    @if(auth()->user()->role === 'teacher' && ! $hasPublishedResults && in_array($competition->status, ['finished', 'ongoing'], true))
+        <div class="rounded-lg bg-white p-6 shadow-md">
+            <h2 class="mb-2 text-xl font-semibold text-gray-800">Результат</h2>
+            <p class="mb-4 text-sm text-gray-600">Место ещё не указано. Добавьте результат на странице соревнования.</p>
+            <a
+                href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results', 'add_result' => 1]) }}"
+                class="inline-flex items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+            >
+                Добавить результат
+            </a>
+        </div>
+    @endif
 </div>

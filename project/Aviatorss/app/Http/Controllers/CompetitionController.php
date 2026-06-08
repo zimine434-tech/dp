@@ -3492,7 +3492,7 @@ class CompetitionController extends Controller
         $user = auth()->user();
 
         if ($user->role === 'teacher') {
-            if (! CompetitionResultPage::guestCanView($competition)) {
+            if (! CompetitionResultPage::teacherCanViewResultPage($competition)) {
                 abort(404);
             }
         } elseif (! CompetitionResultPage::guestCanView($competition)) {

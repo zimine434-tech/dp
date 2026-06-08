@@ -332,77 +332,12 @@
                                 </td>
                             </tr>
 
-                            @php
-                                $listingTd = 'px-4 py-3 align-top border-b border-gray-300';
-                                $listingTdParticipant = 'pl-6 pr-4 py-3 align-top border-b border-gray-300';
-                            @endphp
                             @foreach($finishedWithoutPlacesPage as $competition)
-                                @php
-                                    $sportNameForCompetition = \App\Support\CompetitionResultPage::resolveSportNameForUser($competition, null);
-                                    $sportIdForCompetition = \App\Support\CompetitionResultPage::resolveSportIdForUser($competition, null);
-                                @endphp
-                                <tr class="competition-row results-listing-row" data-group="without"
-                                    data-competition-id="{{ $competition->id }}"
-                                    data-start-date="{{ $competition->start_date->format('Y-m-d') }}"
-                                    data-end-date="{{ $competition->end_date->format('Y-m-d') }}"
-                                    data-sport-id="{{ $sportIdForCompetition ?? '' }}"
-                                    data-name="{{ mb_strtolower($competition->name) }}"
-                                >
-                                    <td class="{{ $listingTd }} max-w-md">
-                                        <div class="font-semibold text-gray-900">
-                                            @include('competitions.partials.listing-name-link', [
-                                                'competition' => $competition,
-                                                'href' => route('competitions.results.show', $competition),
-                                                'linkClass' => 'text-gray-900 hover:text-blue-600 transition',
-                                            ])
-                                        </div>
-                                        <div class="text-sm text-gray-500 mt-1 lg:hidden">
-                                            {{ $sportNameForCompetition }} • {{ $competition->resultFormatLabel() }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                        </div>
-                                    </td>
-                                    <td class="{{ $listingTd }} text-sm text-gray-700 hidden lg:table-cell">
-                                        {{ $sportNameForCompetition }}
-                                    </td>
-                                    <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
-                                        {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                    </td>
-                                    <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
-                                        {{ $competition->category->name_category ?? 'Не указана' }}
-                                    </td>
-                                    @include('competitions.partials.participation-type-cell', [
-                                        'competition' => $competition,
-                                        'hiddenBreakpoint' => 'xl',
-                                        'cellClass' => $listingTd . ' whitespace-nowrap text-sm text-gray-700',
-                                    ])
-                                    <td class="{{ $listingTd }}">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            Нет места
-                                        </span>
-                                    </td>
-                                    <td class="{{ $listingTdParticipant }} whitespace-nowrap">
-                                        <div class="flex items-center min-h-[32px]">
-                                            <a
-                                                href="{{ route('competitions.results.show', $competition) }}"
-                                                class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
-                                            >
-                                                Список участников
-                                            </a>
-                                        </div>
-                                    </td>
-                                    @if(auth()->user()->role === 'teacher')
-                                        <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium {{ $listingTd }}">
-                                            <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
-                                                @include('competitions.partials.add-result-action', ['competition' => $competition])
-                                                <a
-                                                    href="{{ route('competitions.photos', $competition) }}"
-                                                    class="text-indigo-600 hover:text-indigo-900 px-3 py-1 rounded hover:bg-indigo-50 transition whitespace-nowrap"
-                                                >
-                                                    Добавить фотографии
-                                                </a>
-                                            </div>
-                                        </td>
-                                    @endif
-                                </tr>
+                                @include('competitions.partials.results-list-row', [
+                                    'competition' => $competition,
+                                    'result' => null,
+                                    'rowGroup' => 'without',
+                                ])
                             @endforeach
 
                         </tbody>
@@ -486,10 +421,6 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white">
-                            @php
-                                $listingTd = 'px-4 py-3 align-top border-b border-gray-300';
-                                $listingTdParticipant = 'pl-6 pr-4 py-3 align-top border-b border-gray-300';
-                            @endphp
                             @foreach($allOngoingCompetitionsForDisplay as $competition)
                                 @php
                                     $sortedResults = \App\Support\CompetitionResultPage::sortedResultsForListing($competition);
@@ -506,64 +437,11 @@
                                         ])
                                     @endforeach
                                 @else
-                                    <tr class="competition-row results-listing-row" data-competition-id="{{ $competition->id }}">
-                                        <td class="{{ $listingTd }}">
-                                            <div class="font-semibold text-gray-900">
-                                                <a href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}" class="hover:text-blue-600 transition">
-                                                    {{ $competition->name }}
-                                                </a>
-                                            </div>
-                                            <div class="text-sm text-gray-500 mt-1 lg:hidden">
-                                                {{ $competition->sport?->name ?? '—' }} • {{ $competition->resultFormatLabel() }} • {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                            </div>
-                                        </td>
-                                        <td class="{{ $listingTd }} text-sm text-gray-700 hidden lg:table-cell">
-                                            {{ $competition->sport?->name ?? '—' }}
-                                        </td>
-                                        <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
-                                            {{ $competition->start_date->format('d.m.Y') }} - {{ $competition->end_date->format('d.m.Y') }}
-                                        </td>
-                                        <td class="{{ $listingTd }} text-sm text-gray-700 hidden xl:table-cell">
-                                            {{ $competition->category->name_category ?? 'Не указана' }}
-                                        </td>
-                                        @include('competitions.partials.participation-type-cell', [
-                                            'competition' => $competition,
-                                            'hiddenBreakpoint' => 'xl',
-                                            'cellClass' => $listingTd . ' whitespace-nowrap text-sm text-gray-700',
-                                        ])
-                                        <td class="{{ $listingTd }}">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                Нет места
-                                            </span>
-                                        </td>
-                                        <td class="{{ $listingTdParticipant }} whitespace-nowrap">
-                                            <div class="flex items-center min-h-[32px]">
-                                                <a
-                                                    href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
-                                                    class="inline-flex items-center text-blue-600 hover:text-blue-900 py-1 rounded hover:bg-blue-50 transition"
-                                                >
-                                                    Список участников
-                                                </a>
-                                            </div>
-                                        </td>
-                                        <td class="px-3 sm:px-4 py-3 text-right text-sm font-medium {{ $listingTd }}">
-                                            <div class="flex flex-col sm:flex-row sm:flex-wrap items-end sm:items-center justify-end gap-1 sm:gap-2">
-                                                @include('competitions.partials.add-result-action', ['competition' => $competition])
-                                                <a
-                                                    href="{{ route('competitions.photos', $competition) }}"
-                                                    class="text-indigo-600 hover:text-indigo-900 px-3 py-1 rounded hover:bg-indigo-50 transition whitespace-nowrap"
-                                                >
-                                                    Добавить фотографии
-                                                </a>
-                                                <a
-                                                    href="{{ route('competitions.show', ['competition' => $competition, 'from' => 'results']) }}"
-                                                    class="text-gray-700 hover:text-gray-900 px-3 py-1 rounded hover:bg-gray-100 transition"
-                                                >
-                                                    Подробнее
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    @include('competitions.partials.results-list-row', [
+                                        'competition' => $competition,
+                                        'result' => null,
+                                        'showDetailLink' => true,
+                                    ])
                                 @endif
                             @endforeach
                         </tbody>
@@ -575,7 +453,6 @@
                         'competitionsWithResults' => $ongoingWithResults,
                         'competitionsWithoutResults' => $ongoingWithoutResults,
                         'competitionShowQuery' => ['from' => 'results'],
-                        'linkNameToCompetitionShow' => true,
                     ])
                 </div>
 

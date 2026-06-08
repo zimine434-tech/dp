@@ -52,6 +52,15 @@ class CompetitionResultPage
         return self::hasPublishedResults($competition);
     }
 
+    public static function teacherCanViewResultPage(Competition $competition): bool
+    {
+        if ($competition->status === 'cancelled') {
+            return false;
+        }
+
+        return in_array($competition->status, ['finished', 'ongoing'], true);
+    }
+
     public static function applyPublishedResultsQuery(Builder|Relation $query, bool $excludeArchived = false): Builder|Relation
     {
         $query->whereNotNull('place')->where('place', '!=', '');
