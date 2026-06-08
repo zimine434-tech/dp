@@ -189,16 +189,18 @@
             </div>
         </div>
 
+        @if(filled($competition->form_regulation_text))
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Требования к форме</h2>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    @include('partials.rich-text', ['html' => $competition->form_regulation_text, 'class' => 'text-sm text-gray-700'])
+                </div>
+            </div>
+        @endif
+
         @if($isParticipant)
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold text-gray-800 mb-4">Моя форма</h2>
-
-                @if(filled($competition->form_regulation_text))
-                    <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                        <h3 class="text-sm font-medium text-gray-700 mb-2">Требования к форме</h3>
-                        @include('partials.rich-text', ['html' => $competition->form_regulation_text, 'class' => 'text-sm text-gray-700'])
-                    </div>
-                @endif
 
                 @if($myCompetitionForm)
                     <div class="mb-4">
