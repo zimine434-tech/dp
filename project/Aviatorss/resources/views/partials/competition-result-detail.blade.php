@@ -171,7 +171,7 @@
         $hasPublishedResults = $competition->results
             ->contains(fn ($r) => filled(trim((string) ($r->place ?? ''))));
     @endphp
-    @if(auth()->user()->role === 'teacher' && ! $hasPublishedResults && in_array($competition->status, ['finished', 'ongoing'], true))
+    @if(auth()->check() && auth()->user()->role === 'teacher' && ! $hasPublishedResults && in_array($competition->status, ['finished', 'ongoing'], true))
         <div class="rounded-lg bg-white p-6 shadow-md">
             <h2 class="mb-2 text-xl font-semibold text-gray-800">Результат</h2>
             <p class="mb-4 text-sm text-gray-600">Место ещё не указано. Добавьте результат на странице соревнования.</p>

@@ -3,7 +3,7 @@
     /** @var \App\Models\CompetitionResult|null $result */
     $hasResult = $result !== null;
     $isPersonalRow = $hasResult && \App\Support\CompetitionResultPage::isPersonalResultListing($competition, $result);
-    $sportUserId = $isPersonalRow && $result->user_id ? (int) $result->user_id : null;
+    $sportUserId = ($hasResult && $isPersonalRow && $result->user_id) ? (int) $result->user_id : null;
     $sportName = \App\Support\CompetitionResultPage::resolveSportNameForUser($competition, $sportUserId);
     $sportId = \App\Support\CompetitionResultPage::resolveSportIdForUser($competition, $sportUserId);
     $participantName = $isPersonalRow
