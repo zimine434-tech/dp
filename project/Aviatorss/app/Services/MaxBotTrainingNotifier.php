@@ -14,6 +14,28 @@ use Illuminate\Support\Facades\Log;
 class MaxBotTrainingNotifier
 {
     /**
+     * HTML из WYSIWYG → обычный текст для мессенджера MAX.
+     */
+    private function plainText(?string $html, int $maxLength = 0): string
+    {
+        $text = (string) $html;
+        $text = preg_replace('/<br\s*\/?>/i', "\n", $text) ?? $text;
+        $text = preg_replace('/<\/p>/i', "\n", $text) ?? $text;
+        $text = preg_replace('/<\/div>/i', "\n", $text) ?? $text;
+        $text = preg_replace('/<\/li>/i', "\n", $text) ?? $text;
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace("/[ \t]+/u", ' ', $text) ?? $text;
+        $text = preg_replace("/\n{3,}/u", "\n\n", $text) ?? $text;
+        $text = trim($text);
+
+        if ($maxLength > 0 && mb_strlen($text) > $maxLength) {
+            $text = mb_substr($text, 0, $maxLength);
+        }
+
+        return $text;
+    }
+
+    /**
      * Подписчики MAX, у которых в JSON-массиве есть sport_id (надёжнее, чем whereJsonContains).
      *
      * @return EloquentCollection<int, MaxBotSubscriber>
@@ -90,15 +112,13 @@ class MaxBotTrainingNotifier
         $sportName = $trainingSession->sport?->name ?? '—';
         $place = $trainingSession->location?->location ?? '—';
 
-        $desc = trim((string) ($trainingSession->description ?? ''));
-        if ($desc !== '') {
-            $desc = mb_substr($desc, 0, 1000);
-        }
+        $title = $this->plainText($trainingSession->title);
+        $desc = $this->plainText($trainingSession->description, 1000);
 
         $textLines = [
             '🏃 Новая тренировка',
             '',
-            'Название: ' . ($trainingSession->title ?: '—'),
+            'Название: ' . ($title !== '' ? $title : '—'),
             'Вид спорта: ' . $sportName,
             'Дата и время: ' . $start->format('d.m.Y H:i') . ' – ' . $end->format('d.m.Y H:i'),
             'Локация: ' . $place,
@@ -176,18 +196,21 @@ class MaxBotTrainingNotifier
         $sportName = $competition->sport?->name ?? '—';
         $place = $competition->location?->location ?? '—';
 
+        $competitionName = $this->plainText($competition->name);
+        $competitionDesc = $this->plainText($competition->description, 500);
+
         $textLines = [
             'Новое соревнование',
-            "{$competition->name}",
+            $competitionName !== '' ? $competitionName : '—',
             '',
             'Вид спорта: ' . $sportName,
             'Даты: ' . Carbon::parse($competition->start_date)->format('d.m.Y') . '–' . Carbon::parse($competition->end_date)->format('d.m.Y'),
             'Место: ' . $place,
         ];
 
-        if (! empty($competition->description)) {
+        if ($competitionDesc !== '') {
             $textLines[] = '';
-            $textLines[] = mb_substr(trim((string) $competition->description), 0, 500);
+            $textLines[] = $competitionDesc;
         }
 
         $text = implode("\n", $textLines);
