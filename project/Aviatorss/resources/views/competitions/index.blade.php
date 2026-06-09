@@ -694,6 +694,7 @@
             if (form) {
                 applyQueryToForm(url.searchParams);
                 document.dispatchEvent(new CustomEvent('sport-combobox:sync'));
+                document.dispatchEvent(new CustomEvent('filter-combobox:sync'));
             }
 
             const mode = viewModeFromParams(url.searchParams);
@@ -760,7 +761,20 @@
         refreshList(new URL(a.href, window.location.origin));
     });
 
+    // Селектор «Показывать по» внутри #competitions-index-results перерисовывается AJAX-ом.
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        if (!target || target.id !== 'competitions-per-page-bottom' || !form) return;
+        const perPage = document.getElementById('competitions-per-page');
+        if (!perPage) return;
+        const val = String(target.value || '50');
+        perPage.value = val;
+        try { localStorage.setItem(PER_PAGE_STORAGE_KEY, val); } catch (e2) {}
+        scheduleNow();
+    });
+
     if (form) {
+        let needsInitialRefresh = false;
         const perPage = document.getElementById('competitions-per-page');
         const perPageBottom = document.getElementById('competitions-per-page-bottom');
         if (perPage) {
@@ -771,17 +785,10 @@
                     if (stored && stored !== perPage.value) {
                         perPage.value = stored;
                         if (perPageBottom) perPageBottom.value = stored;
+                        needsInitialRefresh = true;
                     }
                 }
             } catch (e) {}
-
-            if (perPageBottom) {
-                perPageBottom.addEventListener('change', function () {
-                    perPage.value = String(perPageBottom.value || '50');
-                    try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(perPage.value || '50')); } catch (e) {}
-                    scheduleNow();
-                });
-            }
         }
 
         form.addEventListener('submit', function (e) {
@@ -793,10 +800,14 @@
         const storedView = getStoredViewMode();
         if (storedView !== serverView) {
             syncViewToForm(storedView);
-            refreshList(buildListUrl(true));
+            needsInitialRefresh = true;
         } else {
             persistViewMode(serverView);
             applyTeacherCompetitionsViewMode(serverView);
+        }
+
+        if (needsInitialRefresh) {
+            refreshList(buildListUrl(true));
         }
     } else {
         const mode = getServerViewMode();

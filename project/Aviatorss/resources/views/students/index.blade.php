@@ -135,6 +135,7 @@
                     .then(function (html) {
                         results.innerHTML = html;
                         syncUrl();
+                        document.dispatchEvent(new CustomEvent('filter-combobox:sync'));
                     })
                     .catch(function (err) {
                         if (err.name === 'AbortError') return;
@@ -145,19 +146,23 @@
             }
 
             function initPerPageFromStorage() {
-                if (!perPageHidden) return;
+                if (!perPageHidden) return false;
                 try {
                     var u = new URL(window.location.href);
                     if (!u.searchParams.get('per_page')) {
                         var stored = localStorage.getItem(PER_PAGE_STORAGE_KEY);
                         if (stored && stored !== perPageHidden.value) {
                             perPageHidden.value = stored;
+                            return true;
                         }
                     }
                 } catch (e) {}
+                return false;
             }
 
-            initPerPageFromStorage();
+            if (initPerPageFromStorage()) {
+                refresh();
+            }
 
             var groupFilter = document.getElementById('student_group_filter');
             if (groupFilter) {

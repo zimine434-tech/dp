@@ -446,6 +446,7 @@
             applyQueryToForm(url.searchParams);
             syncTrainingStatusChips(filterFromTrainingUrlSearchParams(url.searchParams));
             document.dispatchEvent(new CustomEvent('sport-combobox:sync'));
+            document.dispatchEvent(new CustomEvent('filter-combobox:sync'));
             applyTrainingViewMode(getServerViewMode());
             syncPerPageBottomFromHidden();
 
@@ -528,6 +529,8 @@
     const perPageHidden = form.elements.namedItem('per_page');
     const perPageBottom = document.getElementById('training-sessions-per-page-bottom');
 
+    let needsInitialRefresh = false;
+
     if (perPageHidden) {
         try {
             const u = new URL(window.location.href);
@@ -536,6 +539,7 @@
                 if (stored && stored !== perPageHidden.value) {
                     perPageHidden.value = stored;
                     if (perPageBottom) perPageBottom.value = stored;
+                    needsInitialRefresh = true;
                 }
             } else if (perPageBottom) {
                 perPageBottom.value = u.searchParams.get('per_page');
@@ -567,12 +571,17 @@
         syncViewToForm(storedView);
         applyTrainingViewMode(storedView);
         updateTrainingViewInUrl(storedView);
+        needsInitialRefresh = true;
     } else {
         persistViewMode(serverView);
         applyTrainingViewMode(serverView);
     }
 
     syncTrainingStatusChips(filterFromTrainingUrlSearchParams(new URL(window.location.href).searchParams));
+
+    if (needsInitialRefresh) {
+        scheduleNow();
+    }
 })();
 </script>
 @endpush

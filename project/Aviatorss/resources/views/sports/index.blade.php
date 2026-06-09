@@ -313,6 +313,8 @@
     const select = document.getElementById('sports_per_page_bottom');
     if (!hidden || !select) return;
 
+    let needsPerPageSubmit = false;
+
     try {
         const u = new URL(window.location.href);
         if (!u.searchParams.get('per_page')) {
@@ -320,6 +322,7 @@
             if (stored && stored !== hidden.value) {
                 hidden.value = stored;
                 select.value = stored;
+                needsPerPageSubmit = true;
             }
         }
     } catch (e) {}
@@ -335,6 +338,17 @@
             form.submit();
         }
     });
+
+    if (needsPerPageSubmit) {
+        const form = hidden.closest('form');
+        if (form) {
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        }
+    }
 })();
 </script>
 @endpush

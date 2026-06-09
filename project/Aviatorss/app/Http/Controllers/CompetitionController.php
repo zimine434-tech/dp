@@ -19,6 +19,7 @@ use App\Support\ParticipantListingDateFilter;
 use App\Support\StudentCompetitionListingSort;
 use App\Support\UploadedFileErrors;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
@@ -167,6 +168,19 @@ class CompetitionController extends Controller
             'listSortStack',
             'onlyMine',
         );
+    }
+
+    /**
+     * Скрывает из основного списка студента завершённые соревнования старше N месяцев (как у преподавателя).
+     */
+    protected function applyStudentListArchiveVisibility(Builder $query): void
+    {
+        $archiveThreshold = now()->subMonths(self::COMPETITION_ARCHIVE_MONTHS)->startOfDay();
+
+        $query->where(function ($builder) use ($archiveThreshold) {
+            $builder->where('status', '!=', 'finished')
+                ->orWhereDate('end_date', '>', $archiveThreshold->toDateString());
+        });
     }
 
     /**
@@ -606,6 +620,7 @@ class CompetitionController extends Controller
         $competitions = Competition::query()
             ->with(['sport', 'team', 'location', 'category', 'images', 'participants.team.sport']);
 
+        $this->applyStudentListArchiveVisibility($competitions);
         $this->applyStudentCompetitionStatusFilter($competitions, $filter);
         $this->applyStudentCompetitionNameSearch($competitions, $listingFilters);
         $this->applyStudentCompetitionSportFilter($competitions, $listingFilters);
@@ -667,6 +682,7 @@ class CompetitionController extends Controller
                     });
             });
 
+        $this->applyStudentListArchiveVisibility($competitions);
         $this->applyStudentCompetitionStatusFilter($competitions, $filter);
         $this->applyStudentCompetitionNameSearch($competitions, $listingFilters);
         $this->applyStudentCompetitionSportFilter($competitions, $listingFilters);

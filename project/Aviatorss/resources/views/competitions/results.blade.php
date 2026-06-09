@@ -841,6 +841,8 @@
         }
     });
 
+    let needsInitialRefresh = false;
+
     const perPageHidden = form.elements.namedItem('per_page');
     const perPageBottom = document.getElementById('competitions-results-per-page-bottom');
     const perPageBottomOngoing = document.getElementById('competitions-results-per-page-bottom-ongoing');
@@ -854,6 +856,7 @@
                     perPageHidden.value = stored;
                     if (perPageBottom) perPageBottom.value = stored;
                     if (perPageBottomOngoing) perPageBottomOngoing.value = stored;
+                    needsInitialRefresh = true;
                 }
             } else if (perPageBottom) {
                 perPageBottom.value = u.searchParams.get('per_page');
@@ -862,29 +865,28 @@
         } catch (e) {}
     }
 
-    if (perPageBottom && perPageHidden) {
-        perPageBottom.addEventListener('change', function () {
-            perPageHidden.value = String(perPageBottom.value || '25');
-            try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(perPageHidden.value || '25')); } catch (e) {}
-            scheduleNow();
-        });
-    }
-
-    if (perPageBottomOngoing && perPageHidden) {
-        perPageBottomOngoing.addEventListener('change', function () {
-            perPageHidden.value = String(perPageBottomOngoing.value || '25');
-            if (perPageBottom) perPageBottom.value = perPageHidden.value;
-            try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(perPageHidden.value || '25')); } catch (e) {}
-            scheduleNow();
-        });
-    }
+    // Селекторы внутри #competitions-results-content перерисовываются AJAX-ом.
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        if (!target || !perPageHidden) return;
+        const id = target.id;
+        if (id !== 'competitions-results-per-page-bottom' && id !== 'competitions-results-per-page-bottom-ongoing') {
+            return;
+        }
+        const val = String(target.value || '25');
+        perPageHidden.value = val;
+        const bottom = document.getElementById('competitions-results-per-page-bottom');
+        const bottomOngoing = document.getElementById('competitions-results-per-page-bottom-ongoing');
+        if (bottom) bottom.value = val;
+        if (bottomOngoing) bottomOngoing.value = val;
+        try { localStorage.setItem(PER_PAGE_STORAGE_KEY, val); } catch (e2) {}
+        scheduleNow();
+    });
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
         scheduleNow();
     });
-
-    let needsInitialRefresh = false;
 
     (function initSortFromStorage() {
         const url = new URL(window.location.href);

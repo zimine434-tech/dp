@@ -322,7 +322,6 @@
             persistViewMode(mode);
             applyCompetitionViewMode(mode);
             syncPerPageUi(url.searchParams);
-            bindPerPageSelect();
 
             const path = url.pathname + (url.search ? url.search : '');
             if (window.location.pathname + window.location.search !== path) {
@@ -355,18 +354,15 @@
         refreshListing(buildListUrl(true));
     }
 
-    function bindPerPageSelect() {
-        const perPageSelect = getPerPageSelect();
-        if (!perPageHidden || !perPageSelect || perPageSelect.dataset.ajaxBound === '1') return;
-        perPageSelect.dataset.ajaxBound = '1';
-        perPageSelect.addEventListener('change', function () {
-            const v = parseInt(String(perPageSelect.value || '50'), 10);
-            const val = [10, 25, 50, 100].includes(v) ? v : 50;
-            perPageHidden.value = String(val);
-            try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(val)); } catch (e) {}
-            scheduleNow();
-        });
-    }
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        if (!target || target.id !== perPageSelectId || !perPageHidden || !form) return;
+        const v = parseInt(String(target.value || '50'), 10);
+        const val = [10, 25, 50, 100].includes(v) ? v : 50;
+        perPageHidden.value = String(val);
+        try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(val)); } catch (e) {}
+        scheduleNow();
+    });
 
     document.addEventListener('click', function (e) {
         if (e.defaultPrevented || e.button !== 0) return;
@@ -461,7 +457,6 @@
         }
 
         syncPerPageUi(url.searchParams);
-        bindPerPageSelect();
     })();
 
     const serverView = getServerViewMode();
