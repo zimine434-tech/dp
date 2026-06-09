@@ -97,6 +97,8 @@
                         value="{{ old('start_time') }}"
                         required
                         min="{{ now()->format('Y-m-d\TH:i') }}"
+                        data-msg-required="Укажите дату и время начала."
+                        data-msg-min="Дата и время начала не могут быть в прошлом."
                         class="wysiwyg w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('start_time') border-red-500 @enderror"
                     >
                     @error('start_time')
@@ -115,6 +117,8 @@
                         name="end_time" 
                         value="{{ old('end_time') }}"
                         required
+                        data-msg-required="Укажите дату и время окончания."
+                        data-msg-min="Дата и время окончания должны быть позже времени начала."
                         class="wysiwyg w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('end_time') border-red-500 @enderror"
                     >
                     @error('end_time')

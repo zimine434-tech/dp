@@ -94,6 +94,8 @@
                         name="start_time" 
                         value="{{ old('start_time', $trainingSession->start_time->format('Y-m-d\TH:i')) }}"
                         required
+                        data-msg-required="Укажите дату и время начала."
+                        data-msg-min="Дата и время начала не могут быть в прошлом."
                         class="wysiwyg w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('start_time') border-red-500 @enderror"
                     >
                     @error('start_time')
@@ -112,6 +114,8 @@
                         name="end_time" 
                         value="{{ old('end_time', $trainingSession->end_time->format('Y-m-d\TH:i')) }}"
                         required
+                        data-msg-required="Укажите дату и время окончания."
+                        data-msg-min="Дата и время окончания должны быть позже времени начала."
                         class="wysiwyg w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('end_time') border-red-500 @enderror"
                     >
                     @error('end_time')
@@ -296,6 +300,20 @@
                 noResults.classList.add('hidden');
             }
         }
+
+        document.getElementById('start_time').addEventListener('change', function() {
+            const startTime = this.value;
+            const endTimeInput = document.getElementById('end_time');
+            if (startTime) {
+                const startDate = new Date(startTime);
+                startDate.setMinutes(startDate.getMinutes() + 1);
+                endTimeInput.min = startDate.toISOString().slice(0, 16);
+
+                if (endTimeInput.value && new Date(endTimeInput.value) <= startDate) {
+                    endTimeInput.value = startDate.toISOString().slice(0, 16);
+                }
+            }
+        });
 
         // Закрытие dropdown при клике вне его
         document.addEventListener('click', function(event) {

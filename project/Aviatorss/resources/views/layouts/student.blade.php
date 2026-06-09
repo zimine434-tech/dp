@@ -141,6 +141,7 @@
 
     <!-- Scripts -->
     @include('partials.tinymce-loader')
+    @include('partials.ru-html5-validation')
     @stack('scripts')
     
     <script>

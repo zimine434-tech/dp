@@ -279,6 +279,8 @@ class TrainingSessionController extends Controller
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
             'locations_id' => 'required|exists:locations_training,id',
+        ], [
+            'end_time.after' => 'Дата и время окончания должны быть позже времени начала.',
         ]);
 
         $team = Team::query()->findOrFail($validated['team_id']);
