@@ -2801,7 +2801,9 @@ class CompetitionController extends Controller
             'accompanying_teacher' => $this->getTeacherName($competition, $validated['accompanying_teacher']),
             'dispatcher' => $validated['dispatcher'],
             'deputy_director' => $validated['deputy_director'],
-            'director_name' => $validated['director_name'] ?? 'А.Н. Якубовский',
+            'director_name' => filled($validated['director_name'] ?? null)
+                ? trim($validated['director_name'])
+                : 'Якубовский А.Н.',
         ];
 
         try {
