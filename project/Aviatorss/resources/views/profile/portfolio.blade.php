@@ -325,16 +325,15 @@
         }
     });
 
-    const perPageInput = document.getElementById('portfolio-per-page');
-    if (perPageInput) {
-        perPageInput.addEventListener('change', function () {
-            if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
-            } else {
-                form.submit();
-            }
-        });
-    }
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        if (!target || target.id !== 'portfolio-per-page') return;
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
+    });
 
 })();
 </script>

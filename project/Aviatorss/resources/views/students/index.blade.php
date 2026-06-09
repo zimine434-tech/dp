@@ -100,11 +100,25 @@
             var timer = null;
             var aborter = null;
 
-            function paramsFromForm() {
+            function paramsFromForm(resetPage) {
                 var fd = new FormData(form);
                 var p = new URLSearchParams(fd);
+                if (resetPage) {
+                    p.delete('page');
+                }
                 p.set('fragment', '1');
                 return p;
+            }
+
+            function syncPerPageBottomFromHidden() {
+                if (!perPageHidden) return;
+                var bottom = document.getElementById('students_per_page_bottom');
+                if (!bottom) return;
+                bottom.value = String(perPageHidden.value || '50');
+                var root = bottom.closest('[data-filter-combobox]');
+                if (root && typeof root._syncFilterCombobox === 'function') {
+                    root._syncFilterCombobox();
+                }
             }
 
             function syncUrl() {
@@ -115,11 +129,11 @@
                 history.replaceState(null, '', u);
             }
 
-            function refresh() {
+            function refresh(resetPage) {
                 if (aborter) aborter.abort();
                 aborter = new AbortController();
                 results.classList.add('opacity-60', 'pointer-events-none');
-                var p = paramsFromForm();
+                var p = paramsFromForm(!!resetPage);
                 fetch(form.action + '?' + p.toString(), {
                     signal: aborter.signal,
                     credentials: 'same-origin',
@@ -135,6 +149,10 @@
                     .then(function (html) {
                         results.innerHTML = html;
                         syncUrl();
+                        if (typeof window.initFilterComboboxes === 'function') {
+                            window.initFilterComboboxes(results, false);
+                        }
+                        syncPerPageBottomFromHidden();
                         document.dispatchEvent(new CustomEvent('filter-combobox:sync'));
                     })
                     .catch(function (err) {
@@ -171,13 +189,13 @@
                 });
             }
 
-            results.addEventListener('change', function (e) {
+            document.addEventListener('change', function (e) {
                 var target = e.target;
                 if (!target || target.id !== 'students_per_page_bottom') return;
                 if (!perPageHidden) return;
                 perPageHidden.value = String(target.value || '50');
                 try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(perPageHidden.value || '50')); } catch (e2) {}
-                refresh();
+                refresh(true);
             });
 
             lastnameInput.addEventListener('input', function () {

@@ -11,6 +11,8 @@
 
             document.addEventListener('filter-combobox:sync', function () {
                 initFilterComboboxes(document, true);
+                // После AJAX-замены блока списка появляются новые combobox — их нужно инициализировать.
+                initFilterComboboxes(document, false);
             });
 
             function initFilterComboboxes(scope, syncOnly) {

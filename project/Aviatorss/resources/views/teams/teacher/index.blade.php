@@ -236,23 +236,34 @@
     <script>
         (function () {
             const PER_PAGE_STORAGE_KEY = 'teams_teacher_per_page';
-            const select = document.getElementById('teams_teacher_per_page_bottom');
             const perPageHidden = document.getElementById('teams_teacher_filter_per_page');
-            if (!select) return;
+
+            function syncTeamsTeacherPerPageBottomFromHidden() {
+                if (!perPageHidden) return;
+                const bottom = document.getElementById('teams_teacher_per_page_bottom');
+                if (!bottom) return;
+                bottom.value = String(perPageHidden.value || '10');
+                const root = bottom.closest('[data-filter-combobox]');
+                if (root && typeof root._syncFilterCombobox === 'function') {
+                    root._syncFilterCombobox();
+                }
+            }
 
             try {
                 const u = new URL(window.location.href);
                 if (!u.searchParams.get('per_page')) {
                     const stored = localStorage.getItem(PER_PAGE_STORAGE_KEY);
-                    if (stored && stored !== select.value) {
-                        select.value = stored;
-                        if (perPageHidden) perPageHidden.value = stored;
+                    if (stored && perPageHidden && stored !== perPageHidden.value) {
+                        perPageHidden.value = stored;
+                        syncTeamsTeacherPerPageBottomFromHidden();
                     }
                 }
             } catch (e) {}
 
-            select.addEventListener('change', function () {
-                const v = String(select.value || '10');
+            document.addEventListener('change', function (e) {
+                const target = e.target;
+                if (!target || target.id !== 'teams_teacher_per_page_bottom') return;
+                const v = String(target.value || '10');
                 try { localStorage.setItem(PER_PAGE_STORAGE_KEY, v); } catch (e2) {}
                 if (perPageHidden) {
                     perPageHidden.value = v;

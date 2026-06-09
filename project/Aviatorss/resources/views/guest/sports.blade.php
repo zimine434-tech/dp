@@ -96,8 +96,17 @@
 (function () {
     const PER_PAGE_STORAGE_KEY = 'sports_guest_per_page';
     const hidden = document.getElementById('sports_guest_per_page_hidden');
-    const select = document.getElementById('sports_guest_per_page_bottom');
-    if (!hidden || !select) return;
+    if (!hidden) return;
+
+    function syncGuestSportsPerPageBottomFromHidden() {
+        const bottom = document.getElementById('sports_guest_per_page_bottom');
+        if (!bottom) return;
+        bottom.value = String(hidden.value || '25');
+        const root = bottom.closest('[data-filter-combobox]');
+        if (root && typeof root._syncFilterCombobox === 'function') {
+            root._syncFilterCombobox();
+        }
+    }
 
     try {
         const u = new URL(window.location.href);
@@ -105,13 +114,15 @@
             const stored = localStorage.getItem(PER_PAGE_STORAGE_KEY);
             if (stored && stored !== hidden.value) {
                 hidden.value = stored;
-                select.value = stored;
+                syncGuestSportsPerPageBottomFromHidden();
             }
         }
     } catch (e) {}
 
-    select.addEventListener('change', function () {
-        hidden.value = String(select.value || '25');
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        if (!target || target.id !== 'sports_guest_per_page_bottom') return;
+        hidden.value = String(target.value || '25');
         try { localStorage.setItem(PER_PAGE_STORAGE_KEY, String(hidden.value || '25')); } catch (e2) {}
         const form = document.querySelector('[data-sports-search-form]');
         if (form) form.submit();
