@@ -17,8 +17,8 @@
             <div>
                 <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Результаты соревнований</h1>
             </div>
-            @if(auth()->user()->role === 'teacher')
             <div class="flex flex-wrap gap-2 justify-end">
+                @if(auth()->user()->role === 'teacher')
                 <form
                     action="{{ route('competitions.results.report') }}"
                     method="GET"
@@ -48,6 +48,7 @@
                         PDF-отчет
                     </button>
                 </form>
+                @endif
                 <a
                     href="{{ route('competitions.photo-archive') }}"
                     class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium whitespace-nowrap"
@@ -59,7 +60,6 @@
                     <span class="sm:hidden">Архив</span>
                 </a>
             </div>
-            @endif
         </div>
 
         <!-- Сообщения об успехе -->

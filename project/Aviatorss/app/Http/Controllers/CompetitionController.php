@@ -19,7 +19,6 @@ use App\Support\ParticipantListingDateFilter;
 use App\Support\StudentCompetitionListingSort;
 use App\Support\UploadedFileErrors;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
@@ -32,7 +31,7 @@ use LdapRecord\Models\ActiveDirectory\User as LdapUser;
 
 class CompetitionController extends Controller
 {
-    /** Завершённые соревнования старше этого срока у преподавателя уходят в фотоархив и не в основном списке. */
+    /** Завершённые соревнования старше этого срока отображаются в фотоархиве (раздел «Результаты»). */
     private const COMPETITION_ARCHIVE_MONTHS = 6;
 
     private const TEACHER_INDEX_PER_PAGE_LIST = 50;
@@ -66,7 +65,6 @@ class CompetitionController extends Controller
     protected function resolveTeacherCompetitionsListing(Request $request, bool $onlyMine): array
     {
         $filter = $request->get('filter', 'all');
-        $archiveThreshold = now()->subMonths(self::COMPETITION_ARCHIVE_MONTHS)->startOfDay();
 
         $q = Str::limit(trim((string) $request->query('q', '')), 255, '');
 
@@ -101,11 +99,6 @@ class CompetitionController extends Controller
         if ($onlyMine) {
             $query->where('created_by', auth()->id());
         }
-
-        $query->where(function ($builder) use ($archiveThreshold) {
-            $builder->where('status', '!=', 'finished')
-                ->orWhereDate('end_date', '>', $archiveThreshold->toDateString());
-        });
 
         $query->when($q !== '', function ($builder) use ($q) {
             $like = '%'.addcslashes($q, '%_\\').'%';
@@ -168,19 +161,6 @@ class CompetitionController extends Controller
             'listSortStack',
             'onlyMine',
         );
-    }
-
-    /**
-     * Скрывает из основного списка студента завершённые соревнования старше N месяцев (как у преподавателя).
-     */
-    protected function applyStudentListArchiveVisibility(Builder $query): void
-    {
-        $archiveThreshold = now()->subMonths(self::COMPETITION_ARCHIVE_MONTHS)->startOfDay();
-
-        $query->where(function ($builder) use ($archiveThreshold) {
-            $builder->where('status', '!=', 'finished')
-                ->orWhereDate('end_date', '>', $archiveThreshold->toDateString());
-        });
     }
 
     /**
@@ -620,7 +600,6 @@ class CompetitionController extends Controller
         $competitions = Competition::query()
             ->with(['sport', 'team', 'location', 'category', 'images', 'participants.team.sport']);
 
-        $this->applyStudentListArchiveVisibility($competitions);
         $this->applyStudentCompetitionStatusFilter($competitions, $filter);
         $this->applyStudentCompetitionNameSearch($competitions, $listingFilters);
         $this->applyStudentCompetitionSportFilter($competitions, $listingFilters);
@@ -682,7 +661,6 @@ class CompetitionController extends Controller
                     });
             });
 
-        $this->applyStudentListArchiveVisibility($competitions);
         $this->applyStudentCompetitionStatusFilter($competitions, $filter);
         $this->applyStudentCompetitionNameSearch($competitions, $listingFilters);
         $this->applyStudentCompetitionSportFilter($competitions, $listingFilters);
@@ -866,33 +844,16 @@ class CompetitionController extends Controller
 
         $isParticipant = $students->contains(fn ($p) => (int) $p->user_id === (int) auth()->id());
 
-        $pendingApplication = ApplicationCompetition::query()
+        $latestApplication = ApplicationCompetition::query()
             ->where('competition_id', $competition->id)
             ->where('user_id', auth()->id())
-            ->where('status', 'pending')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
             ->first();
 
-        $latestRejectedApplication = ApplicationCompetition::query()
-            ->where('competition_id', $competition->id)
-            ->where('user_id', auth()->id())
-            ->where('status', 'rejected')
-            ->orderByDesc('updated_at')
-            ->first();
-
-        $latestAcceptedApplication = ApplicationCompetition::query()
-            ->where('competition_id', $competition->id)
-            ->where('user_id', auth()->id())
-            ->where('status', 'accepted')
-            ->orderByDesc('accepted_at')
-            ->orderByDesc('updated_at')
-            ->first();
-
-        $latestExpiredApplication = ApplicationCompetition::query()
-            ->where('competition_id', $competition->id)
-            ->where('user_id', auth()->id())
-            ->where('status', ApplicationCompetition::STATUS_EXPIRED)
-            ->orderByDesc('updated_at')
-            ->first();
+        $pendingApplication = $latestApplication?->status === ApplicationCompetition::STATUS_PENDING
+            ? $latestApplication
+            : null;
 
         $competitionShowBack = $this->competitionShowBackLink();
         $competitionShowContextQuery = $this->competitionShowRouteQuery();
@@ -910,9 +871,7 @@ class CompetitionController extends Controller
             'competition' => $competition,
             'isParticipant' => $isParticipant,
             'pendingApplication' => $pendingApplication,
-            'latestExpiredApplication' => $latestExpiredApplication,
-            'latestRejectedApplication' => $latestRejectedApplication,
-            'latestAcceptedApplication' => $latestAcceptedApplication,
+            'latestApplication' => $latestApplication,
             'competitionShowBack' => $competitionShowBack,
             'competitionShowContextQuery' => $competitionShowContextQuery,
             'myCompetitionForm' => $myCompetitionForm,
@@ -974,6 +933,17 @@ class CompetitionController extends Controller
             return $this->redirectToCompetitionShow($competition)
                 ->with('error', 'Заявка по этому соревнованию уже была подана и не была рассмотрена.');
         }
+
+        ApplicationCompetition::query()
+            ->where('competition_id', $competition->id)
+            ->where('user_id', $user->id)
+            ->where('status', ApplicationCompetition::STATUS_ACCEPTED)
+            ->update([
+                'status' => ApplicationCompetition::STATUS_REJECTED,
+                'rejection_reason' => ApplicationCompetition::REASON_REMOVED_FROM_PARTICIPANTS,
+                'accepted_at' => null,
+                'accepted_by_user_id' => null,
+            ]);
 
         ApplicationCompetition::create([
             'user_id' => $user->id,
@@ -1969,6 +1939,17 @@ class CompetitionController extends Controller
                     ->where('added_via', 'competition')
                     ->delete();
             }
+
+            ApplicationCompetition::query()
+                ->where('competition_id', $competition->id)
+                ->where('user_id', $userId)
+                ->where('status', ApplicationCompetition::STATUS_ACCEPTED)
+                ->update([
+                    'status' => ApplicationCompetition::STATUS_REJECTED,
+                    'rejection_reason' => ApplicationCompetition::REASON_REMOVED_FROM_PARTICIPANTS,
+                    'accepted_at' => null,
+                    'accepted_by_user_id' => null,
+                ]);
         }
 
         if ($request->expectsJson()) {

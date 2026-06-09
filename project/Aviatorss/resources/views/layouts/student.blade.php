@@ -67,7 +67,7 @@
                     <li>
                         <x-sidebar-nav-link
                             :href="route('competitions.results')"
-                            :routes="['competitions.results']"
+                            :routes="['competitions.results', 'competitions.photo-archive']"
                             label="Результаты соревнований"
                             active-tone="green"
                             :student="true"

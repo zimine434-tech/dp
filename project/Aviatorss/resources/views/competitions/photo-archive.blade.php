@@ -1,4 +1,4 @@
-@extends('layouts.teacher')
+@extends(auth()->user()->role === 'teacher' ? 'layouts.teacher' : 'layouts.student')
 
 @section('title', 'Архив соревнований')
 

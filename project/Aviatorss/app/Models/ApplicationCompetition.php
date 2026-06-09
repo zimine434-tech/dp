@@ -17,6 +17,8 @@ class ApplicationCompetition extends Model
 
     public const REASON_FINISHED = 'Соревнование завершено, заявка не была рассмотрена';
 
+    public const REASON_REMOVED_FROM_PARTICIPANTS = 'Удалены из участников соревнования';
+
     protected $table = 'application_competition';
 
     protected $fillable = [

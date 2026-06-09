@@ -153,36 +153,39 @@
                     <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
                         Вы в списке участников этого соревнования.
                     </div>
-                @elseif(!empty($latestAcceptedApplication) && $competition->status === 'upcoming')
-                    <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-                        Заявка принята.
-                        @if($latestAcceptedApplication->accepted_at)
-                            <span class="mt-1 block text-xs text-green-800/90">Дата принятия: {{ $latestAcceptedApplication->accepted_at->format('d.m.Y H:i') }}</span>
-                        @endif
-                    </div>
-                @elseif($pendingApplication && $competition->status === 'upcoming')
+                @elseif($latestApplication && $latestApplication->status === 'pending' && $competition->status === 'upcoming')
                     <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                         Заявка отправлена и ожидает рассмотрения преподавателем.
-                        <span class="mt-1 block text-xs text-amber-800/90">Дата подачи: {{ $pendingApplication->created_at->format('d.m.Y H:i') }}</span>
+                        <span class="mt-1 block text-xs text-amber-800/90">Дата подачи: {{ $latestApplication->created_at->format('d.m.Y H:i') }}</span>
                     </div>
-                @elseif(!empty($latestExpiredApplication))
+                @elseif($latestApplication && $latestApplication->status === 'rejected' && $competition->status === 'upcoming')
+                    @if($latestApplication->rejection_reason === \App\Models\ApplicationCompetition::REASON_REMOVED_FROM_PARTICIPANTS)
+                        <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            Вы удалены из участников соревнования. Подайте заявку еще раз.
+                        </div>
+                    @else
+                        <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                            <p>Последняя заявка отклонена.</p>
+                            @if(filled($latestApplication->rejection_reason))
+                                <p class="mt-1 text-red-800/90">Причина: {{ $latestApplication->rejection_reason }}</p>
+                            @endif
+                            @if($canApply)
+                                <p class="mt-2 text-xs text-red-800/80">Вы можете подать новую заявку кнопкой справа.</p>
+                            @endif
+                        </div>
+                    @endif
+                @elseif($latestApplication && $latestApplication->status === 'accepted' && $competition->status === 'upcoming')
+                    <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        Вы удалены из участников соревнования. Подайте заявку еще раз.
+                    </div>
+                @elseif($latestApplication && $latestApplication->status === \App\Models\ApplicationCompetition::STATUS_EXPIRED)
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
                         <p>Заявка не была рассмотрена.</p>
-                        @if(filled($latestExpiredApplication->rejection_reason))
-                            <p class="mt-1 text-gray-600">{{ $latestExpiredApplication->rejection_reason }}</p>
+                        @if(filled($latestApplication->rejection_reason))
+                            <p class="mt-1 text-gray-600">{{ $latestApplication->rejection_reason }}</p>
                         @endif
-                        @if($latestExpiredApplication->created_at)
-                            <span class="mt-1 block text-xs text-gray-500">Дата подачи: {{ $latestExpiredApplication->created_at->format('d.m.Y H:i') }}</span>
-                        @endif
-                    </div>
-                @elseif($latestRejectedApplication && $competition->status === 'upcoming')
-                    <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-                        <p>Последняя заявка отклонена.</p>
-                        @if(filled($latestRejectedApplication->rejection_reason))
-                            <p class="mt-1 text-red-800/90">Причина: {{ $latestRejectedApplication->rejection_reason }}</p>
-                        @endif
-                        @if($canApply)
-                            <p class="mt-2 text-xs text-red-800/80">Вы можете подать новую заявку кнопкой справа.</p>
+                        @if($latestApplication->created_at)
+                            <span class="mt-1 block text-xs text-gray-500">Дата подачи: {{ $latestApplication->created_at->format('d.m.Y H:i') }}</span>
                         @endif
                     </div>
                 @endif
