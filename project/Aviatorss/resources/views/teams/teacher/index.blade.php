@@ -121,8 +121,8 @@
                                 </div>
                                 <!-- Описание -->
                                 <div class="mb-4 flex-1 min-h-0">
-                                    @if(filled(trim(strip_tags((string) ($team->description ?? '')))))
-                                        <p class="text-gray-600 text-sm leading-relaxed line-clamp-3">{{ \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags($team->description))), 240) }}</p>
+                                    @if(\App\Support\RichTextPlain::filled($team->description))
+                                        <p class="text-gray-600 text-sm leading-relaxed line-clamp-3">{{ \App\Support\RichTextPlain::fromHtml($team->description, 240) }}</p>
                                     @else
                                         <p class="text-gray-400 text-sm italic">Описание отсутствует</p>
                                     @endif

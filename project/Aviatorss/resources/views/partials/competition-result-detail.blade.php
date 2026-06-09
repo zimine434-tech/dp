@@ -98,7 +98,7 @@
                 @include('news.partials.news-images-carousel', [
                     'images' => $competitionPhotos,
                     'altTitle' => $competition->name,
-                    'description' => strip_tags($competition->description ?? ''),
+                    'description' => \App\Support\RichTextPlain::fromHtml($competition->description),
                     'fillCover' => true,
                 ])
             </div>

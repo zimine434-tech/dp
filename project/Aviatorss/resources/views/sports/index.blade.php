@@ -8,7 +8,7 @@
 
         $sportsView = ($view ?? 'list') === 'cards' ? 'cards' : 'list';
         $cardsSortStack = $cardsSortStack ?? SportListingSort::defaultStack();
-        $listSortStack = $listSortStack ?? SportListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? SportListingSort::defaultListStack();
         $sportsListingRoute = ($onlyMine ?? false) ? 'sports.my' : 'sports.index';
         $sportsBaseListingParams = array_filter([
             'q' => ($q ?? '') !== '' ? $q : null,
@@ -138,7 +138,7 @@
                             <div class="flex flex-1 flex-col p-5 sm:p-6">
                                 <h3 class="text-lg font-bold leading-tight text-gray-900 break-words">{{ $sport->name }}</h3>
                                 <p class="mt-2 line-clamp-3 text-sm leading-relaxed text-gray-600">
-                                    {{ \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($sport->description ?? '')))), 220) ?: 'Описание отсутствует' }}
+                                    {{ \App\Support\RichTextPlain::fromHtml($sport->description, 220) ?: 'Описание отсутствует' }}
                                 </p>
                                 <p class="mt-3 text-xs text-gray-500 lg:text-sm">
                                     <span class="text-gray-500">Создатель:</span>
@@ -207,7 +207,7 @@
                                     </td>
                                     <td class="px-6 py-4 hidden md:table-cell">
                                         <div class="text-sm text-gray-500 line-clamp-2">
-                                            {{ \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($sport->description ?? '')))), 220) ?: 'Описание отсутствует' }}
+                                            {{ \App\Support\RichTextPlain::fromHtml($sport->description, 220) ?: 'Описание отсутствует' }}
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap hidden lg:table-cell">

@@ -2787,7 +2787,7 @@ class CompetitionController extends Controller
             'date' => \Carbon\Carbon::parse($validated['order_date'])->format('d.m.Y'),
             // Данные из таблицы competitions
             'competition_name' => $competition->name,
-            'competition_description' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($competition->description ?? $competition->name)))) ?: $competition->name,
+            'competition_description' => \App\Support\RichTextPlain::fromHtml($competition->description ?? $competition->name) ?: $competition->name,
             'start_date' => $competition->start_date->format('d.m.Y'),
             'end_date' => $competition->end_date->format('d.m.Y'),
             // Данные из таблицы sports через связь

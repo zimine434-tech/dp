@@ -129,7 +129,7 @@
                             </div>
                             <p class="mb-3 line-clamp-3 flex-1 text-sm text-gray-600">
                                 @if(filled($result->competition->description))
-                                    {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($result->competition->description ?? '')))), 150) }}
+                                    {{ \App\Support\RichTextPlain::fromHtml($result->competition->description, 150) }}
                                 @else
                                     {{ $result->competition->sport?->name ?? 'Соревнование' }}
                                     @if($result->competition->participants->count() > 0)

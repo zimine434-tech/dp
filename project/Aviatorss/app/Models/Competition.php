@@ -354,7 +354,7 @@ class Competition extends Model
      */
     public function visibleDescriptionPlain(): string
     {
-        return trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($this->description ?? ''))));
+        return \App\Support\RichTextPlain::fromHtml($this->description);
     }
 
     public function hasVisibleDescription(): bool

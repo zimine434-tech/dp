@@ -56,7 +56,7 @@
 
         @if(filled($competition->description))
             <p class="mb-4 line-clamp-3 flex-1 text-sm text-gray-600">
-                {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($competition->description ?? '')))), 150) }}
+                {{ \App\Support\RichTextPlain::fromHtml($competition->description, 150) }}
             </p>
         @endif
 

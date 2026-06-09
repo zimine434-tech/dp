@@ -101,7 +101,7 @@
                 $resultsView = auth()->user()->role === 'teacher' ? 'list' : 'cards';
             }
             $cardsSortStack = $cardsSortStack ?? StudentCompetitionListingSort::defaultStack();
-            $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultStack();
+            $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultListStack();
             $categoryFilterOptions = collect($categoriesForResultsFilter ?? [])
                 ->map(fn ($category) => ['value' => (string) $category->id, 'label' => (string) $category->name_category])
                 ->values()

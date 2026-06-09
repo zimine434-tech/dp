@@ -139,7 +139,7 @@
                                 @endif
                                 @if($team->description)
                                     <p class="line-clamp-3 text-sm text-gray-600">
-                                        {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags($team->description))), 100) }}
+                                        {{ \App\Support\RichTextPlain::fromHtml($team->description, 100) }}
                                     </p>
                                 @endif
                                 <div class="text-sm text-gray-500">

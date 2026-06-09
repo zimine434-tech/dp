@@ -49,7 +49,7 @@
         </div>
         <p class="mb-3 line-clamp-3 min-h-0 flex-1 text-sm text-gray-600">
             @if(filled($competition->description))
-                {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($competition->description ?? '')))), 150) }}
+                {{ \App\Support\RichTextPlain::fromHtml($competition->description, 150) }}
             @else
                 {{ $sportName !== '—' ? $sportName : 'Соревнование' }}
                 @if($competition->participants->count() > 0)

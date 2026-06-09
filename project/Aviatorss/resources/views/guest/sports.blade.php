@@ -54,7 +54,7 @@
                             <div class="mb-4 flex-1 space-y-2">
                                 @if($sport->description)
                                     <p class="line-clamp-3 text-sm text-gray-600">
-                                        {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags($sport->description))), 100) }}
+                                        {{ \App\Support\RichTextPlain::fromHtml($sport->description, 100) }}
                                     </p>
                                 @endif
                             </div>

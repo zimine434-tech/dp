@@ -7,7 +7,7 @@
         use App\Support\TrainingSessionListingSort;
 
         $cardsSortStack = $cardsSortStack ?? TrainingSessionListingSort::defaultStack();
-        $listSortStack = $listSortStack ?? TrainingSessionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? TrainingSessionListingSort::defaultListStack();
         $trainingIndexFilterParams = array_filter([
             'q' => ($q ?? '') !== '' ? $q : null,
             'date_from' => $dateFrom ?? null,

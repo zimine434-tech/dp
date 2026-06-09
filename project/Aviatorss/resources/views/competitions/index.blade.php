@@ -15,7 +15,7 @@
         $perPage = $perPage ?? 50;
         $sports = $sports ?? collect();
         $cardsSortStack = $cardsSortStack ?? StudentCompetitionListingSort::defaultStack();
-        $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultListStack();
         $teacherListingRoute = ($onlyMine ?? false) ? 'competitions.my' : 'competitions.index';
         $hasSearchFilters = $q !== '' || $dateFrom || $dateTo || $sportId;
         $teacherBaseListingParams = array_filter([

@@ -40,7 +40,7 @@
         </div>
         @if(filled($session->description))
             <p class="mb-3 line-clamp-2 flex-1 text-xs text-gray-600 sm:text-sm">
-                {{ \Illuminate\Support\Str::limit(strip_tags($session->description), 120) }}
+                {{ \App\Support\RichTextPlain::fromHtml($session->description, 120) }}
             </p>
         @endif
         <div class="mt-auto">

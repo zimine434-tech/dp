@@ -9,7 +9,7 @@
         $filter = $filter ?? 'upcoming';
         $listingFilters = $listingFilters ?? [];
         $cardsSortStack = $cardsSortStack ?? StudentCompetitionListingSort::defaultStack();
-        $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? StudentCompetitionListingSort::defaultListStack();
         $studentView = $view ?? 'cards';
         if (! in_array($studentView, ['list', 'cards'], true)) {
             $studentView = 'cards';

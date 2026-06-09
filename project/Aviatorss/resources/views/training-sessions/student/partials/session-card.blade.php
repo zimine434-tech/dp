@@ -63,7 +63,7 @@
 
         @if(filled($session->description))
             <p class="mb-4 line-clamp-3 flex-1 text-sm text-gray-600">
-                {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($session->description ?? '')))), 150) }}
+                {{ \App\Support\RichTextPlain::fromHtml($session->description, 150) }}
             </p>
         @endif
 

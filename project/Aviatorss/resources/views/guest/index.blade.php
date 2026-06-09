@@ -341,7 +341,7 @@
                                 </div>
                                 <p class="mb-0 min-h-0 flex-1 text-sm leading-snug text-gray-600 line-clamp-3">
                                     @if(filled($result->competition->description))
-                                        {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($result->competition->description ?? '')))), 150) }}
+                                        {{ \App\Support\RichTextPlain::fromHtml($result->competition->description, 150) }}
                                     @else
                                         {{ $result->competition->sport?->name ?? 'Соревнование' }}
                                         @if($result->competition->participants->count() > 0)
@@ -430,7 +430,7 @@
                                 <div class="mb-0 min-h-0 flex-1 space-y-2">
                                     @if($sport->description)
                                         <p class="line-clamp-3 text-sm text-gray-600">
-                                            {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($sport->description ?? '')))), 100) }}
+                                            {{ \App\Support\RichTextPlain::fromHtml($sport->description, 100) }}
                                         </p>
                                     @endif
                                 </div>
@@ -509,7 +509,7 @@
                                     @endif
                                     @if($team->description)
                                         <p class="line-clamp-3 text-sm text-gray-600">
-                                            {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($team->description ?? '')))), 100) }}
+                                            {{ \App\Support\RichTextPlain::fromHtml($team->description, 100) }}
                                         </p>
                                     @endif
                                     <div class="text-sm text-gray-500">

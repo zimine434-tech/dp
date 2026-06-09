@@ -62,7 +62,9 @@ class StudentCompetitionListingSort
             return [];
         }
 
-        return self::defaultStack();
+        return $prefix === self::PREFIX_LIST
+            ? self::defaultListStack()
+            : self::defaultStack();
     }
 
     public static function isCleared(array $stack): bool
@@ -91,7 +93,7 @@ class StudentCompetitionListingSort
             return $filtered;
         }
 
-        return self::defaultStack();
+        return self::defaultListStack();
     }
 
     /**
@@ -100,6 +102,16 @@ class StudentCompetitionListingSort
     public static function defaultStack(): array
     {
         return [['field' => 'start_date', 'order' => 'desc']];
+    }
+
+    /**
+     * Таблица (list): без активной сортировки — иконка ⇅ в заголовке.
+     *
+     * @return array<int, array{field: string, order: string}>
+     */
+    public static function defaultListStack(): array
+    {
+        return [];
     }
 
     public static function isOnlyDefaultStack(array $stack): bool
@@ -228,8 +240,10 @@ class StudentCompetitionListingSort
             return $stack;
         }
 
-        if ($currentOrder === 'asc') {
-            $stack[$index]['order'] = 'desc';
+        $oppositeOrder = $defaultOrder === 'desc' ? 'asc' : 'desc';
+
+        if ($currentOrder === $defaultOrder) {
+            $stack[$index]['order'] = $oppositeOrder;
 
             return $stack;
         }
@@ -246,11 +260,18 @@ class StudentCompetitionListingSort
     public static function queryParamsForPrefix(string $prefix, array $stack): array
     {
         if ($stack === []) {
+            if ($prefix === self::PREFIX_LIST) {
+                return [];
+            }
+
             return [$prefix.'_sort' => 'none'];
         }
 
-        $default = self::defaultStack();
-        if (count($stack) === 1
+        $default = $prefix === self::PREFIX_LIST
+            ? self::defaultListStack()
+            : self::defaultStack();
+        if ($default !== []
+            && count($stack) === 1
             && $stack[0]['field'] === $default[0]['field']
             && $stack[0]['order'] === $default[0]['order']) {
             return [];

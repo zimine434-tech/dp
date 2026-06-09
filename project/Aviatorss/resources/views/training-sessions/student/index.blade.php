@@ -23,7 +23,7 @@
         $filter = $filter ?? 'all';
         $listingFilters = $listingFilters ?? [];
         $cardsSortStack = $cardsSortStack ?? TrainingSessionListingSort::defaultStack();
-        $listSortStack = $listSortStack ?? TrainingSessionListingSort::defaultStack();
+        $listSortStack = $listSortStack ?? TrainingSessionListingSort::defaultListStack();
         $studentView = $view ?? 'cards';
         if (! in_array($studentView, ['list', 'cards'], true)) {
             $studentView = 'cards';

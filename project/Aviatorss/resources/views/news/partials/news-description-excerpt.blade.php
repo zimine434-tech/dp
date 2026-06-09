@@ -15,7 +15,7 @@
         $truncated = false;
         $showEllipsisLink = false;
     } else {
-        $plain = trim(preg_replace('/\s+/u', ' ', strip_tags($raw)));
+        $plain = \App\Support\RichTextPlain::fromHtml($raw);
         if ($plain === '') {
             $body = '';
             $truncated = false;

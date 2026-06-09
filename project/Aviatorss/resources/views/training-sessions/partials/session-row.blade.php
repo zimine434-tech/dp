@@ -3,7 +3,7 @@
         <div class="text-sm font-medium text-gray-900">{{ $session->title }}</div>
         @if($session->description)
             <div class="text-xs text-gray-500 line-clamp-1 hidden sm:block mt-1">
-                {{ Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($session->description ?? '')))), 50) }}
+                {{ \App\Support\RichTextPlain::fromHtml($session->description, 50) }}
             </div>
         @endif
     </td>
